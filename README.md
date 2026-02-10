@@ -30,7 +30,7 @@ npm run dev
 
 The Dockerfiles and Compose service are optimized for local development only (hot reload, source sync, etc.). For production builds you can still run `npm run build` outside Docker and deploy the `dist/` output to a static host.
 
-## Supabase local stack
+## Supabase local stack 
 
 1. Supabase offers a local stack via the CLI (`supabase start`). Install it with `npm install supabase --save-dev` (or just use `npx supabase`) and keep your Node.js runtime at 20+ so the CLI can run successfully. citeturn0search0
 2. Run `supabase start` from the repo root. The CLI uses Docker to launch Postgres, GoTrue, Studio, and other services and prints the local API URL plus the anon and service role keys you will paste into `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and your server-side `SUPABASE_SERVICE_ROLE_KEY`) so the app can talk to the local stack. citeturn0search0
