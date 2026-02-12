@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs'
@@ -183,25 +183,54 @@ export default function Reporting() {
         </div>
     )
 
+    const PrintFrame = ({ children }: { children: ReactNode }) => (
+        <div className="print:w-[210mm] print:mx-auto print:bg-white print:text-black print:font-sans print:leading-tight print:px-8 print:py-6 print:relative print:!mt-0">
+            <div className="hidden print:block absolute top-0 right-0 h-full w-2 bg-[#EE2E24] z-0"></div>
+            <div className="hidden print:block absolute top-0 right-2 w-24 h-24 bg-gradient-to-bl from-gray-100 to-transparent z-0 opacity-50"></div>
+            <div className="print:relative print:z-10">
+                {children}
+            </div>
+        </div>
+    )
+
     // Print Header Component
     const PrintHeader = ({ title }: { title: string }) => (
-        <div className="hidden print:block mb-8 border-b-2 border-slate-900 pb-4">
-            <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-widest mb-2">{title}</h1>
-            <div className="flex justify-between items-end text-sm text-slate-600 font-mono">
-                <div>
-                    <p className="font-semibold text-slate-900">Ziyada Business</p>
-                    <p>Financial Report</p>
+        <div className="hidden print:block mb-6 border-b-2 border-slate-200 pb-4">
+            <div className="flex justify-between items-start">
+                <div className="w-1/2">
+                    <div className="flex flex-col">
+                        <div className="text-3xl font-black tracking-tight leading-none text-black italic">
+                            <span className="text-[#EE2E24]">Z</span>IYADA
+                            <span className="text-gray-400 font-light not-italic ml-1 text-lg">SPORT</span>
+                        </div>
+                        <div className="text-[7px] font-bold tracking-[0.2em] text-[#EE2E24] uppercase mt-1 pl-1">
+                            Dare to be Different
+                        </div>
+                    </div>
+                    <div className="mt-4">
+                        <div className="text-[10px] font-bold text-gray-900 border-l-2 border-[#EE2E24] pl-2 uppercase">
+                            Financial Report
+                        </div>
+                        <div className="text-[9px] text-gray-500 pl-2 mt-0.5 font-mono">
+                            {title}
+                        </div>
+                    </div>
                 </div>
-                <div className="text-right">
-                    <p>Period: <span className="font-bold text-slate-900">{startDate}</span> to <span className="font-bold text-slate-900">{endDate}</span></p>
-                    <p className="text-xs mt-1">Printed on: {new Date().toLocaleDateString()}</p>
+                <div className="w-[40%] text-right pt-1">
+                    <div className="text-[7px] uppercase tracking-wider text-gray-500 font-bold mb-0.5">Periode</div>
+                    <div className="text-[10px] font-bold text-gray-900">
+                        {startDate} - {endDate}
+                    </div>
+                    <div className="text-[8px] text-gray-500 mt-1">
+                        Printed on: {new Date().toLocaleDateString()}
+                    </div>
                 </div>
             </div>
         </div>
     )
 
     return (
-        <div className="w-full space-y-6 pb-20 print:pb-0 print:space-y-4">
+        <div className="w-full space-y-6 pb-20 print:pb-0 print:space-y-0">
             <div className="print:hidden">
                 <PageHeader
                     title="Financial Reports"
@@ -279,42 +308,45 @@ export default function Reporting() {
 
                 {!loading && (
                     <div className="animate-in fade-in duration-300">
-                        <TabsContent value="TB" className="print:block">
-                            <PrintHeader title="Trial Balance" />
-                            <Section title="Trial Balance" description="Closing balances for all accounts." className="border-t-4 border-t-indigo-500 print:border-none print:shadow-none print:p-0">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left whitespace-nowrap">
-                                        <thead className="bg-slate-50 text-slate-600 uppercase text-xs font-semibold tracking-wider border-b border-slate-200">
-                                            <tr>
-                                                <th className="px-6 py-3 print:px-2 print:py-1">Code</th>
-                                                <th className="px-6 py-3 print:px-2 print:py-1">Account Name</th>
-                                                <th className="px-6 py-3 text-right print:px-2 print:py-1">Opening</th>
-                                                <th className="px-6 py-3 text-right text-emerald-600 print:px-2 print:py-1">Debit</th>
-                                                <th className="px-6 py-3 text-right text-rose-600 print:px-2 print:py-1">Credit</th>
-                                                <th className="px-6 py-3 text-right text-slate-900 print:px-2 print:py-1">Closing</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {data.map(d => (
-                                                <tr key={d.id} className="hover:bg-indigo-50/30 transition-colors print:hover:bg-transparent">
-                                                    <td className="px-6 py-3 font-mono text-xs text-slate-500 print:px-2 print:py-1">{d.code}</td>
-                                                    <td className="px-6 py-3 font-medium text-slate-900 print:px-2 print:py-1">{d.name}</td>
-                                                    <td className="px-6 py-3 text-right text-slate-500 font-mono print:px-2 print:py-1">{fmt(d.opening_balance)}</td>
-                                                    <td className="px-6 py-3 text-right text-emerald-600 font-mono print:px-2 print:py-1">{fmt(d.debit_movement)}</td>
-                                                    <td className="px-6 py-3 text-right text-rose-600 font-mono print:px-2 print:py-1">{fmt(d.credit_movement)}</td>
-                                                    <td className="px-6 py-3 text-right font-bold text-slate-900 font-mono print:px-2 print:py-1">{fmt(d.closing_balance)}</td>
+                        <TabsContent value="TB" className="print:block print:pt-0">
+                            <PrintFrame>
+                                <PrintHeader title="Trial Balance" />
+                                <Section title="Trial Balance" description="Closing balances for all accounts." className="border-t-4 border-t-indigo-500 print:border-none print:shadow-none print:p-0">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="bg-slate-50 text-slate-600 uppercase text-xs font-semibold tracking-wider border-b border-slate-200">
+                                                <tr>
+                                                    <th className="px-6 py-3 print:px-2 print:py-1">Code</th>
+                                                    <th className="px-6 py-3 print:px-2 print:py-1">Account Name</th>
+                                                    <th className="px-6 py-3 text-right print:px-2 print:py-1">Opening</th>
+                                                    <th className="px-6 py-3 text-right text-emerald-600 print:px-2 print:py-1">Debit</th>
+                                                    <th className="px-6 py-3 text-right text-rose-600 print:px-2 print:py-1">Credit</th>
+                                                    <th className="px-6 py-3 text-right text-slate-900 print:px-2 print:py-1">Closing</th>
                                                 </tr>
-                                            ))}
-                                            {data.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No data available for this period.</td></tr>}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </Section>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {data.map(d => (
+                                                    <tr key={d.id} className="hover:bg-indigo-50/30 transition-colors print:hover:bg-transparent">
+                                                        <td className="px-6 py-3 font-mono text-xs text-slate-500 print:px-2 print:py-1">{d.code}</td>
+                                                        <td className="px-6 py-3 font-medium text-slate-900 print:px-2 print:py-1">{d.name}</td>
+                                                        <td className="px-6 py-3 text-right text-slate-500 font-mono print:px-2 print:py-1">{fmt(d.opening_balance)}</td>
+                                                        <td className="px-6 py-3 text-right text-emerald-600 font-mono print:px-2 print:py-1">{fmt(d.debit_movement)}</td>
+                                                        <td className="px-6 py-3 text-right text-rose-600 font-mono print:px-2 print:py-1">{fmt(d.credit_movement)}</td>
+                                                        <td className="px-6 py-3 text-right font-bold text-slate-900 font-mono print:px-2 print:py-1">{fmt(d.closing_balance)}</td>
+                                                    </tr>
+                                                ))}
+                                                {data.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No data available for this period.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Section>
+                            </PrintFrame>
                         </TabsContent>
 
-                        <TabsContent value="BS" className="print:block">
-                            <PrintHeader title="Balance Sheet" />
-                            <div className="max-w-6xl mx-auto">
+                        <TabsContent value="BS" className="print:block print:pt-0">
+                            <PrintFrame>
+                                <PrintHeader title="Balance Sheet" />
+                                <div className="max-w-6xl mx-auto">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
                                     {/* ASSETS */}
                                     <Section title="Assets" description="What the company owns." className="border-t-4 border-t-emerald-500 h-full print:border-none print:shadow-none print:p-0">
@@ -394,12 +426,14 @@ export default function Reporting() {
                                     )}
                                 </div>
                             </div>
+                            </PrintFrame>
                         </TabsContent>
 
-                        <TabsContent value="PL" className="print:block">
-                            <PrintHeader title="Profit & Loss" />
-                            <Section title="Income Statement" description="Profit and Loss statement for the period." className="border-t-4 border-t-blue-500 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0 print:max-w-none">
-                                <div className="space-y-8 p-4 print:p-0 print:space-y-4">
+                        <TabsContent value="PL" className="print:block print:pt-0">
+                            <PrintFrame>
+                                <PrintHeader title="Profit & Loss" />
+                                <Section title="Income Statement" description="Profit and Loss statement for the period." className="border-t-4 border-t-blue-500 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0 print:max-w-none">
+                                    <div className="space-y-8 p-4 print:p-0 print:space-y-4">
                                     <div>
                                         <h4 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-200 flex justify-between items-center print:mb-2 print:text-base">
                                             <span>Revenue</span>
@@ -476,13 +510,15 @@ export default function Reporting() {
                                             {fmt(-retainedEarnings)}
                                         </span>
                                     </div>
-                                </div>
-                            </Section>
+                                    </div>
+                                </Section>
+                            </PrintFrame>
                         </TabsContent>
 
-                        <TabsContent value="CF" className="print:block">
-                            <PrintHeader title="Cash Flow" />
-                            <Section title="Cash Flow Statement" description="Inflow and outflow of cash." className="border-t-4 border-t-cyan-500 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0 print:max-w-none">
+                        <TabsContent value="CF" className="print:block print:pt-0">
+                            <PrintFrame>
+                                <PrintHeader title="Cash Flow" />
+                                <Section title="Cash Flow Statement" description="Inflow and outflow of cash." className="border-t-4 border-t-cyan-500 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0 print:max-w-none">
                                 {cashflowData.length === 0 ? (
                                     <div className="py-20 text-center text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 print:bg-transparent">
                                         <Icons.DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -512,12 +548,14 @@ export default function Reporting() {
                                         })}
                                     </div>
                                 )}
-                            </Section>
+                                </Section>
+                            </PrintFrame>
                         </TabsContent>
 
-                        <TabsContent value="GL" className="print:block">
-                            <PrintHeader title="General Ledger" />
-                            <Section title="General Ledger" description="Detailed transaction history." className="border-t-4 border-t-orange-500 print:border-none print:shadow-none print:p-0">
+                        <TabsContent value="GL" className="print:block print:pt-0">
+                            <PrintFrame>
+                                <PrintHeader title="General Ledger" />
+                                <Section title="General Ledger" description="Detailed transaction history." className="border-t-4 border-t-orange-500 print:border-none print:shadow-none print:p-0">
                                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row gap-4 items-end mb-4 rounded-lg print:hidden">
                                     <div className="flex-1 w-full">
                                         <Select
@@ -575,7 +613,8 @@ export default function Reporting() {
                                         {glAccount ? "No transactions found for this period." : "Select an account to view transactions."}
                                     </div>
                                 )}
-                            </Section>
+                                </Section>
+                            </PrintFrame>
                         </TabsContent>
                     </div>
                 )}

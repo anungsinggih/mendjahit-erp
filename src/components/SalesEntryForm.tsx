@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Textarea } from "./ui/Textarea";
 import { Icons } from "./ui/Icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "../hooks/useQueries";
 import { TotalFooter } from "./ui/TotalFooter";
 import { Badge } from "./ui/Badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
@@ -39,6 +40,7 @@ type Props = {
 
 export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = true, initialSalesId }: Props) {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [items, setItems] = useState<Item[]>([]);
@@ -572,6 +574,8 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                 onSaved?.(salesId);
             }
             if (redirectOnSave) {
+                queryClient.invalidateQueries({ queryKey: ["sales-detail", salesId] });
+                queryClient.invalidateQueries({ queryKey: ["sales-history"] });
                 navigate(`/sales/${salesId}`);
             }
         } catch (err: unknown) {
@@ -599,6 +603,7 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         navigate,
         onError,
         getErrorMessage,
+        queryClient,
     ]);
 
     const handleSaveDraft = useCallback(async () => {

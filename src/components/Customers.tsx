@@ -9,11 +9,12 @@ import CustomerList from './CustomerList'
 import { useNavigate } from 'react-router-dom'
 import { getErrorMessage } from '../lib/errors'
 import { formatCurrency } from '../lib/format'
-import { useCustomersQuery, useCustomerOutstandingQuery } from '../hooks/useQueries'
+import { useCustomersQuery, useCustomerOutstandingQuery, prefetchCustomerDetail, useQueryClient } from '../hooks/useQueries'
 
 export default function Customers() {
     const navigate = useNavigate()
     const { confirm } = useConfirm()
+    const queryClient = useQueryClient()
 
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -37,7 +38,8 @@ export default function Customers() {
         setIsModalOpen(false)
         refetch()
         refetchOutstanding()
-    }, [refetch, refetchOutstanding])
+        queryClient.invalidateQueries({ queryKey: ["customer-detail"] })
+    }, [refetch, refetchOutstanding, queryClient])
 
     const handleAddCustomer = useCallback(() => {
         setEditingCustomer(null)
@@ -56,6 +58,10 @@ export default function Customers() {
     const handleView = useCallback((customer: Customer) => {
         navigate(`/customers/${customer.id}`)
     }, [navigate])
+
+    const handlePrefetch = useCallback((id: string) => {
+        prefetchCustomerDetail(queryClient, id)
+    }, [queryClient])
 
     const handleCreateSale = useCallback((customer: Customer) => {
         navigate(`/sales?customer=${customer.id}`)
@@ -82,8 +88,9 @@ export default function Customers() {
         else {
             refetch()
             refetchOutstanding()
+            queryClient.invalidateQueries({ queryKey: ["customer-detail", id] })
         }
-    }, [confirm, refetch, refetchOutstanding])
+    }, [confirm, refetch, refetchOutstanding, queryClient])
 
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
@@ -95,11 +102,11 @@ export default function Customers() {
                 <Button onClick={handleAddCustomer} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">Add Customer</Button>
             </div>
 
-    {fetchErrorMessage && (
-        <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2">
-            <Icons.Warning className="w-5 h-5 flex-shrink-0" /> Error: {fetchErrorMessage}
-        </div>
-    )}
+            {fetchErrorMessage && (
+                <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2">
+                    <Icons.Warning className="w-5 h-5 flex-shrink-0" /> Error: {fetchErrorMessage}
+                </div>
+            )}
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -150,6 +157,7 @@ export default function Customers() {
                 onPrices={handlePrices}
                 onView={handleView}
                 onCreateSale={handleCreateSale}
+                onPrefetch={handlePrefetch}
             />
 
             <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>

@@ -26,7 +26,7 @@ import { useDebounce } from "../hooks/useDebounce";
 import { Pagination } from "./ui/Pagination";
 import { PageHeader } from "./ui/PageHeader";
 import { Section } from "./ui/Section";
-import { usePurchaseHistoryQuery, usePurchaseReturnDraftCountQuery } from "../hooks/useQueries";
+import { usePurchaseHistoryQuery, usePurchaseReturnDraftCountQuery, prefetchPurchaseDetail, useQueryClient } from "../hooks/useQueries";
 
 
 type PurchaseRecord = {
@@ -49,12 +49,14 @@ type PurchaseRowProps = {
   onEdit: (id: string) => void;
   onPost: (id: string) => void;
   postingId: string | null;
+  onPrefetch: (id: string) => void;
 };
 
-const PurchaseRow = memo(({ purchase, onOpen, onEdit, onPost, postingId }: PurchaseRowProps) => (
+const PurchaseRow = memo(({ purchase, onOpen, onEdit, onPost, postingId, onPrefetch }: PurchaseRowProps) => (
   <TableRow
     className="cursor-pointer hover:bg-slate-50"
     onClick={() => onOpen(purchase.id)}
+    onMouseEnter={() => onPrefetch(purchase.id)}
   >
     <TableCell>{formatDate(purchase.purchase_date)}</TableCell>
     <TableCell className="font-mono text-sm">
@@ -222,6 +224,11 @@ export default function PurchaseHistory() {
 
   const handleOpen = useCallback((id: string) => navigate(`/purchases/${id}`), [navigate]);
   const handleEdit = useCallback((id: string) => navigate(`/purchases/${id}/edit`), [navigate]);
+
+  const queryClient = useQueryClient();
+  const handlePrefetch = useCallback((id: string) => {
+    prefetchPurchaseDetail(queryClient, id);
+  }, [queryClient]);
 
   const purchases = purchaseData?.items || [];
   const totalCount = purchaseData?.count || 0;
@@ -403,6 +410,7 @@ export default function PurchaseHistory() {
                       onEdit={handleEdit}
                       onPost={handlePost}
                       postingId={postingId}
+                      onPrefetch={handlePrefetch}
                     />
                   ))}
                 </TableBody>

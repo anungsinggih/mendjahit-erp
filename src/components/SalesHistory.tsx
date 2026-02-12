@@ -27,7 +27,7 @@ import { useDebounce } from "../hooks/useDebounce";
 import { Pagination } from "./ui/Pagination";
 import { PageHeader } from "./ui/PageHeader";
 import { Section } from "./ui/Section";
-import { useSalesHistoryQuery, useSalesReturnDraftCountQuery } from "../hooks/useQueries";
+import { useSalesHistoryQuery, useSalesReturnDraftCountQuery, prefetchSalesDetail, useQueryClient } from "../hooks/useQueries";
 
 type SalesRecord = {
   id: string;
@@ -50,12 +50,14 @@ type SalesRowProps = {
   onEdit: (id: string) => void;
   onPost: (id: string) => void;
   postingId: string | null;
+  onPrefetch: (id: string) => void;
 };
 
-const SalesRow = memo(({ sale, onOpen, onEdit, onPost, postingId }: SalesRowProps) => (
+const SalesRow = memo(({ sale, onOpen, onEdit, onPost, postingId, onPrefetch }: SalesRowProps) => (
   <TableRow
     className="cursor-pointer hover:bg-slate-50"
     onClick={() => onOpen(sale.id)}
+    onMouseEnter={() => onPrefetch(sale.id)}
   >
     <TableCell>{formatDate(sale.sales_date)}</TableCell>
     <TableCell className="font-mono text-sm">
@@ -220,6 +222,11 @@ export default function SalesHistory() {
 
   const handleOpen = useCallback((id: string) => navigate(`/sales/${id}`), [navigate]);
   const handleEdit = useCallback((id: string) => navigate(`/sales/${id}/edit`), [navigate]);
+
+  const queryClient = useQueryClient();
+  const handlePrefetch = useCallback((id: string) => {
+    prefetchSalesDetail(queryClient, id);
+  }, [queryClient]);
 
   const sales = salesData?.items || [];
   const totalCount = salesData?.count || 0;
@@ -401,6 +408,7 @@ export default function SalesHistory() {
                       onEdit={handleEdit}
                       onPost={handlePost}
                       postingId={postingId}
+                      onPrefetch={handlePrefetch}
                     />
                   ))}
                 </TableBody>

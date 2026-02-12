@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "../supabaseClient";
+import { useVendorDetailQuery } from "../hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
@@ -10,106 +9,31 @@ import { Icons } from "./ui/Icons";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 
-type VendorDetailData = {
-  id: string;
-  name: string;
-  phone: string | null;
-  address: string | null;
-  is_active: boolean;
-  vendor_type?: "SUPPLIER" | "KONVEKSI" | "INTERNAL" | null;
-};
+type VendorType = "SUPPLIER" | "KONVEKSI" | "INTERNAL" | null | undefined;
 
-type PurchaseRow = {
-  id: string;
-  purchase_no: string | null;
-  purchase_date: string | null;
-  status: string;
-  total_amount: number | null;
+const getTypeLabel = (type?: VendorType) => {
+  switch (type) {
+    case "KONVEKSI":
+      return "Konveksi";
+    case "INTERNAL":
+      return "Internal";
+    case "SUPPLIER":
+    default:
+      return "Supplier";
+  }
 };
 
 export default function VendorDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [vendor, setVendor] = useState<VendorDetailData | null>(null);
-  const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lifetimeValue, setLifetimeValue] = useState(0);
-  const [outstanding, setOutstanding] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    fetchDetail(id);
-  }, [id]);
+  const { data: detailData, isLoading: loading, error: fetchError } = useVendorDetailQuery(id);
 
-  const getTypeLabel = (type?: VendorDetailData["vendor_type"]) => {
-    switch (type) {
-      case "KONVEKSI":
-        return "Konveksi";
-      case "INTERNAL":
-        return "Internal";
-      case "SUPPLIER":
-      default:
-        return "Supplier";
-    }
-  };
-
-  async function fetchDetail(vendorId: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: vendorData, error: vendorError } = await supabase
-        .from("vendors")
-        .select("id,name,phone,address,is_active,vendor_type")
-        .eq("id", vendorId)
-        .single();
-      if (vendorError) throw vendorError;
-      setVendor(vendorData);
-
-      const { data: purchaseData, error: purchaseError } = await supabase
-        .from("purchases")
-        .select("id,purchase_no,purchase_date,status,total_amount")
-        .eq("vendor_id", vendorId)
-        .order("purchase_date", { ascending: false })
-        .limit(20);
-      if (purchaseError) throw purchaseError;
-      setPurchases((purchaseData || []) as PurchaseRow[]);
-
-      const { data: lifetimeRows, error: lifetimeError } = await supabase
-        .from("purchases")
-        .select("total_amount,status")
-        .eq("vendor_id", vendorId)
-        .eq("status", "POSTED");
-      if (lifetimeError) throw lifetimeError;
-      const lifetime = (lifetimeRows || []).reduce(
-        (sum: number, row: { total_amount: number | null }) =>
-          sum + (row.total_amount || 0),
-        0
-      );
-      setLifetimeValue(lifetime);
-
-      const { data: apData, error: apError } = await supabase
-        .from("ap_bills")
-        .select("outstanding_amount,status")
-        .eq("vendor_id", vendorId);
-      if (!apError) {
-        const apOutstanding = (apData || [])
-          .filter((row: { status: string }) => row.status !== "PAID")
-          .reduce(
-            (sum: number, row: { outstanding_amount: number | null }) =>
-              sum + (row.outstanding_amount || 0),
-            0
-          );
-        setOutstanding(apOutstanding);
-      } else {
-        setOutstanding(null);
-      }
-    } catch (err: unknown) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const vendor = detailData?.vendor ?? null;
+  const purchases = detailData?.purchases ?? [];
+  const lifetimeValue = detailData?.lifetimeValue ?? 0;
+  const outstanding = detailData?.outstanding ?? null;
+  const error = fetchError ? getErrorMessage(fetchError) : null;
 
   if (!id) {
     return <Alert variant="error" title="Error" description="Vendor ID not found." />;

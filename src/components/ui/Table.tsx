@@ -18,11 +18,12 @@ export function TableBody({ children, className = '' }: { children: React.ReactN
     return <tbody className={`divide-y divide-[var(--border)] bg-white ${className}`}>{children}</tbody>
 }
 
-export function TableRow({ children, className = '', onClick }: { children: React.ReactNode, className?: string, onClick?: () => void }) {
+export function TableRow({ children, className = '', onClick, onMouseEnter }: { children: React.ReactNode, className?: string, onClick?: () => void, onMouseEnter?: () => void }) {
     return (
         <tr
             className={`transition-colors hover:bg-[#F5F7FA] even:bg-[#F9FAFB] ${onClick ? 'cursor-pointer' : ''} ${className}`}
             onClick={onClick}
+            onMouseEnter={onMouseEnter}
         >
             {children}
         </tr>

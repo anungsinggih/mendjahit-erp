@@ -1,4 +1,4 @@
-import { useMemo, useState, memo } from 'react'
+import { useEffect, useMemo, useState, memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -8,6 +8,8 @@ import { CustomerBadge } from './ui/CustomerBadge'
 import { Icons } from './ui/Icons'
 import { type Customer } from './CustomerForm'
 import { useDebounce } from '../hooks/useDebounce'
+import { usePagination } from '../hooks/usePagination'
+import { Pagination } from './ui/Pagination'
 
 interface CustomerListProps {
     customers: Customer[]
@@ -17,9 +19,10 @@ interface CustomerListProps {
     onPrices: (customer: Customer) => void
     onView: (customer: Customer) => void
     onCreateSale: (customer: Customer) => void
+    onPrefetch?: (id: string) => void
 }
 
-function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, onCreateSale }: CustomerListProps) {
+function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, onCreateSale, onPrefetch }: CustomerListProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const debouncedSearch = useDebounce(searchTerm, 350)
 
@@ -30,6 +33,17 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
             (c.address && c.address.toLowerCase().includes(debouncedSearch.toLowerCase()))
         )
     ), [customers, debouncedSearch])
+
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 15 })
+
+    useEffect(() => {
+        setPage(1)
+    }, [debouncedSearch, setPage])
+
+    const pagedCustomers = useMemo(
+        () => filteredCustomers.slice(range[0], range[1] + 1),
+        [filteredCustomers, range]
+    )
 
     return (
         <Card>
@@ -58,16 +72,17 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : filteredCustomers.map(c => (
-                                <TableRow key={c.id} className={!c.is_active ? 'bg-gray-100 opacity-60' : ''}>
+                            {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : pagedCustomers.map(c => (
+                                <TableRow
+                                    key={c.id}
+                                    className={!c.is_active ? 'bg-gray-100 opacity-60' : ''}
+                                    onClick={() => onView(c)}
+                                    onMouseEnter={() => onPrefetch?.(c.id)}
+                                >
                                     <TableCell className="font-medium">
-                                        <button
-                                            type="button"
-                                            onClick={() => onView(c)}
-                                            className="text-left text-slate-900 hover:text-blue-700"
-                                        >
+                                        <div className="text-left text-slate-900">
                                             <CustomerBadge name={c.name} customerType={c.customer_type} />
-                                        </button>
+                                        </div>
                                     </TableCell>
                                     <TableCell>{c.phone}</TableCell>
                                     <TableCell className="max-w-xs truncate">{c.address}</TableCell>
@@ -81,7 +96,10 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                onClick={() => onCreateSale(c)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onCreateSale(c);
+                                                }}
                                                 className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
                                             >
                                                 <Icons.Cart className="w-[20px] h-[20px]" />
@@ -90,16 +108,35 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    onClick={() => onPrices(c)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onPrices(c);
+                                                    }}
                                                     className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
                                                 >
                                                     <Icons.Tag className="w-[20px] h-[20px]" />
                                                 </Button>
                                             )}
-                                            <Button size="sm" variant="ghost" onClick={() => onEdit(c)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEdit(c);
+                                                }}
+                                                className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
+                                            >
                                                 <Icons.Edit className="w-[22px] h-[22px]" />
                                             </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => onDelete(c.id)} className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDelete(c.id);
+                                                }}
+                                                className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600"
+                                            >
                                                 <Icons.Trash className="w-[22px] h-[22px]" />
                                             </Button>
                                         </div>
@@ -109,6 +146,13 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                         </TableBody>
                     </Table>
                 </div>
+                <Pagination
+                    currentPage={page}
+                    totalCount={filteredCustomers.length}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    isLoading={loading}
+                />
             </CardContent>
         </Card >
     )

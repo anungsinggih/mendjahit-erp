@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "../supabaseClient";
+import { useCustomerDetailQuery } from "../hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
@@ -10,94 +9,17 @@ import { Icons } from "./ui/Icons";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 
-type CustomerDetailData = {
-  id: string;
-  name: string;
-  phone: string | null;
-  address: string | null;
-  customer_type: "UMUM" | "KHUSUS" | "CUSTOM";
-  is_active: boolean;
-};
-
-type SalesRow = {
-  id: string;
-  sales_no: string | null;
-  sales_date: string | null;
-  status: string;
-  total_amount: number | null;
-};
-
 export default function CustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [customer, setCustomer] = useState<CustomerDetailData | null>(null);
-  const [sales, setSales] = useState<SalesRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lifetimeValue, setLifetimeValue] = useState(0);
-  const [outstanding, setOutstanding] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    fetchDetail(id);
-  }, [id]);
+  const { data: detailData, isLoading: loading, error: fetchError } = useCustomerDetailQuery(id);
 
-  async function fetchDetail(customerId: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: customerData, error: customerError } = await supabase
-        .from("customers")
-        .select("id,name,phone,address,customer_type,is_active")
-        .eq("id", customerId)
-        .single();
-      if (customerError) throw customerError;
-      setCustomer(customerData);
-
-      const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select("id,sales_no,sales_date,status,total_amount")
-        .eq("customer_id", customerId)
-        .order("sales_date", { ascending: false })
-        .limit(20);
-      if (salesError) throw salesError;
-      setSales((salesData || []) as SalesRow[]);
-
-      const { data: lifetimeRows, error: lifetimeError } = await supabase
-        .from("sales")
-        .select("total_amount,status")
-        .eq("customer_id", customerId)
-        .eq("status", "POSTED");
-      if (lifetimeError) throw lifetimeError;
-      const lifetime = (lifetimeRows || []).reduce(
-        (sum: number, row: { total_amount: number | null }) =>
-          sum + (row.total_amount || 0),
-        0
-      );
-      setLifetimeValue(lifetime);
-
-      const { data: arData, error: arError } = await supabase
-        .from("ar_invoices")
-        .select("outstanding_amount,status")
-        .eq("customer_id", customerId);
-      if (!arError) {
-        const arOutstanding = (arData || [])
-          .filter((row: { status: string }) => row.status !== "PAID")
-          .reduce(
-            (sum: number, row: { outstanding_amount: number | null }) =>
-              sum + (row.outstanding_amount || 0),
-            0
-          );
-        setOutstanding(arOutstanding);
-      } else {
-        setOutstanding(null);
-      }
-    } catch (err: unknown) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const customer = detailData?.customer ?? null;
+  const sales = detailData?.sales ?? [];
+  const lifetimeValue = detailData?.lifetimeValue ?? 0;
+  const outstanding = detailData?.outstanding ?? null;
+  const error = fetchError ? getErrorMessage(fetchError) : null;
 
   if (!id) {
     return <Alert variant="error" title="Error" description="Customer ID not found." />;

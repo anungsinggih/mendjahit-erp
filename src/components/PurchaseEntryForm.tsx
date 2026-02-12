@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Textarea } from "./ui/Textarea";
 import { Icons } from "./ui/Icons";
 import { useConfirm } from "./ui/ConfirmDialogContext";
+import { useQueryClient } from "../hooks/useQueries";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { TotalFooter } from "./ui/TotalFooter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
@@ -53,6 +54,7 @@ type Props = {
 
 export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave = true, initialPurchaseId }: Props) {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
     const { confirm } = useConfirm();
     const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -434,6 +436,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 onSuccess(`Draft Updated! ID: ${initialPurchaseId}`);
                 onSaved?.(initialPurchaseId);
                 if (redirectOnSave) {
+                    queryClient.invalidateQueries({ queryKey: ["purchase-detail", initialPurchaseId] });
+                    queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
                     navigate(`/purchases/${initialPurchaseId}`);
                 }
             } else {
@@ -485,6 +489,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 onSuccess(`Draft Created! ID: ${purId}`);
                 onSaved?.(purId);
                 if (redirectOnSave) {
+                    queryClient.invalidateQueries({ queryKey: ["purchase-detail", purId] });
+                    queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
                     navigate(`/purchases/${purId}`);
                 }
             }
@@ -502,6 +508,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         totalAmount,
         discountAmount,
         normalizeLines,
+        queryClient,
         initialPurchaseId,
         purchaseDate,
         notes,

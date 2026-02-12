@@ -13,6 +13,7 @@ import { useConfirm } from "./ui/ConfirmDialogContext";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from '../hooks/useQueries';
 
 type Purchase = {
     id: string
@@ -51,6 +52,7 @@ type Props = {
 export function PurchaseReturnForm({ onSuccess, onError }: Props) {
     const navigate = useNavigate()
     const { confirm } = useConfirm()
+    const queryClient = useQueryClient()
     const [postedPurchases, setPostedPurchases] = useState<Purchase[]>([])
     const [selectedPurchaseId, setSelectedPurchaseId] = useState('')
     const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
@@ -317,6 +319,8 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Updated: ${draftId}`)
+                queryClient.invalidateQueries({ queryKey: ["purchase-return-detail", draftId] })
+                queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
                 navigate(`/purchase-returns/${draftId}`)
             } else {
                 // 1. Header
@@ -350,6 +354,8 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Created: ${retData.id}`)
+                queryClient.invalidateQueries({ queryKey: ["purchase-return-detail", retData.id] })
+                queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
                 navigate(`/purchase-returns/${retData.id}`)
             }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
+import { usePurchaseDetailQuery, useQueryClient } from "../hooks/useQueries";
 import { Button } from "./ui/Button";
 import { useConfirm } from "./ui/ConfirmDialogContext";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -54,36 +55,6 @@ type PurchaseItem = {
   subtotal: number;
 };
 
-type RelatedDoc = {
-  journal_id?: string;
-  journal_date?: string;
-  ap_bill_id?: string;
-  ap_total?: number;
-  ap_outstanding?: number;
-  ap_status?: string;
-  payment_id?: string;
-  payment_amount?: number;
-};
-
-type InventoryHistoryRow = {
-  item_id: string | null;
-  item_name: string | null;
-  sku: string | null;
-  size_name?: string | null;
-  color_name?: string | null;
-  qty_change: number | null;
-  trx_date: string | null;
-  ref_no: string | null;
-};
-
-type PurchaseReturnSummary = {
-  id: string;
-  return_date: string;
-  total_amount: number;
-  status: "DRAFT" | "POSTED" | "VOID";
-  return_no?: string | null;
-};
-
 type CompanyBank = {
   id: string;
   code: string;
@@ -97,15 +68,22 @@ type CompanyBank = {
 export default function PurchaseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [purchase, setPurchase] = useState<PurchaseDetail | null>(null);
-  const [items, setItems] = useState<PurchaseItem[]>([]);
-  const [relatedDocs, setRelatedDocs] = useState<RelatedDoc>({});
-  const [returns, setReturns] = useState<PurchaseReturnSummary[]>([]);
-  const [inventoryHistory, setInventoryHistory] = useState<InventoryHistoryRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [paymentMethodName, setPaymentMethodName] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // --- React Query for all detail data ---
+  const { data: detailData, isLoading: loading, error: fetchError, refetch } = usePurchaseDetailQuery(id);
+  const purchase = detailData?.purchase ?? null;
+  const items = detailData?.items ?? [];
+  const relatedDocs = detailData?.relatedDocs ?? {};
+  const returns = detailData?.returns ?? [];
+  const inventoryHistory = detailData?.inventoryHistory ?? [];
+  const paymentMethodName = detailData?.paymentMethodName ?? null;
+  const error = fetchError ? getErrorMessageLocal(fetchError) : null;
+
+  // --- Company banks (separate, lightweight) ---
   const [companyBanks, setCompanyBanks] = useState<CompanyBank[]>([]);
+
+  // --- Action state (unchanged) ---
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -114,6 +92,7 @@ export default function PurchaseDetail() {
   const [isPosting, setIsPosting] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement | null>(null);
+  const imageRef = useRef<HTMLDivElement | null>(null);
   const { confirm } = useConfirm();
   const itemsTotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const discountAmount = purchase?.discount_amount || 0;
@@ -124,229 +103,9 @@ export default function PurchaseDetail() {
 
   useEffect(() => {
     if (id) {
-      fetchPurchaseDetail(id);
       fetchCompanyBanks();
     }
   }, [id]);
-
-  async function fetchPurchaseDetail(purchaseId: string) {
-    setLoading(true);
-    setError(null);
-    setInventoryHistory([]);
-
-    try {
-      // Fetch header
-      const { data: purchaseData, error: purchaseError } = await supabase
-        .from("purchases")
-        .select(
-          `
-                    id,
-                    purchase_date,
-                    purchase_no,
-                    vendor_id,
-                    terms,
-                    payment_method_code,
-                    total_amount,
-                    discount_amount,
-                    status,
-                    notes,
-                    created_at,
-                    vendors (
-                        name
-                    )
-                `,
-        )
-        .eq("id", purchaseId)
-        .single();
-
-      if (purchaseError) throw purchaseError;
-
-      setPurchase({
-        ...purchaseData,
-        vendor_name: (purchaseData.vendors as unknown as { name: string })?.name || "Unknown",
-      });
-
-      if (purchaseData.terms === "CASH" && purchaseData.payment_method_code) {
-        const { data: methodData } = await supabase
-          .from("payment_methods")
-          .select("name")
-          .eq("code", purchaseData.payment_method_code)
-          .single();
-        setPaymentMethodName(methodData?.name || purchaseData.payment_method_code);
-      } else {
-        setPaymentMethodName(null);
-      }
-
-      // Fetch items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("purchase_items")
-        .select(
-          `
-                    id,
-                    item_id,
-                    qty,
-                    unit_cost,
-                    subtotal,
-                    uom_snapshot,
-                    items (
-                        name,
-                        sku,
-                        sizes ( name ),
-                        colors ( name )
-                    )
-                `,
-        )
-        .eq("purchase_id", purchaseId);
-
-      if (itemsError) throw itemsError;
-
-      const mappedItems =
-        itemsData?.map((item) => ({
-          ...item,
-          item_name: (item.items as unknown as { name: string })?.name || "Unknown",
-          sku: (item.items as unknown as { sku: string })?.sku || "",
-          size_name:
-            (item.items as unknown as { sizes?: { name: string } })?.sizes?.name ||
-            undefined,
-          color_name:
-            (item.items as unknown as { colors?: { name: string } })?.colors?.name ||
-            undefined,
-        })) || [];
-
-      const mergedItems = Object.values(
-        mappedItems.reduce((acc, item) => {
-          const key = `${item.item_id}-${item.unit_cost}`;
-          if (!acc[key]) {
-            acc[key] = { ...item };
-            return acc;
-          }
-          acc[key].qty += item.qty;
-          acc[key].subtotal += item.subtotal;
-          return acc;
-        }, {} as Record<string, PurchaseItem>),
-      );
-
-      setItems(mergedItems);
-
-      // Fetch related documents (only if POSTED)
-      if (purchaseData.status === "POSTED") {
-        const related: RelatedDoc = {};
-
-        // Journal
-        const { data: journalData } = await supabase
-          .from("journals")
-          .select("id, journal_date")
-          .eq("ref_type", "purchase")
-          .eq("ref_id", purchaseId)
-          .single();
-
-        if (journalData) {
-          related.journal_id = journalData.id;
-          related.journal_date = journalData.journal_date;
-        }
-
-        // AP Bill (if CREDIT)
-        if (purchaseData.terms === "CREDIT") {
-          const { data: apData } = await supabase
-            .from("ap_bills")
-            .select("id, total_amount, outstanding_amount, status")
-            .eq("purchase_id", purchaseId)
-            .single();
-
-          if (apData) {
-            related.ap_bill_id = apData.id;
-            related.ap_total = apData.total_amount;
-            related.ap_outstanding = apData.outstanding_amount;
-            related.ap_status = apData.status;
-          }
-        }
-
-        // Payment (if CASH)
-        if (purchaseData.terms === "CASH") {
-          const { data: paymentData } = await supabase
-            .from("payments")
-            .select("id, amount")
-            .eq("ref_type", "purchase")
-            .eq("ref_id", purchaseId)
-            .maybeSingle();
-
-          if (paymentData) {
-            related.payment_id = paymentData.id;
-            related.payment_amount = paymentData.amount;
-          }
-        }
-
-        setRelatedDocs(related);
-
-        if (!related.journal_id && purchaseData.purchase_no) {
-          const { data: invData, error: invError } = await supabase
-            .from("view_stock_card")
-            .select("item_id, item_name, sku, qty_change, trx_date, ref_no")
-            .eq("trx_type", "PURCHASE")
-            .eq("ref_no", purchaseData.purchase_no);
-          if (!invError) {
-            const baseRows = (invData as InventoryHistoryRow[]) || [];
-            const ids = Array.from(
-              new Set(baseRows.map((row) => row.item_id).filter(Boolean) as string[]),
-            );
-            if (ids.length > 0) {
-              const { data: itemMeta } = await supabase
-                .from("items")
-                .select("id, sizes(name), colors(name)")
-                .in("id", ids);
-              const metaMap = new Map(
-                (itemMeta || []).map((row) => [
-                  row.id,
-                  {
-                    size_name:
-                      (row.sizes as unknown as { name?: string } | null)?.name || null,
-                    color_name:
-                      (row.colors as unknown as { name?: string } | null)?.name || null,
-                  },
-                ]),
-              );
-              setInventoryHistory(
-                baseRows.map((row) => {
-                  const meta = metaMap.get(row.item_id || "");
-                  return {
-                    ...row,
-                    size_name: meta?.size_name ?? row.size_name ?? null,
-                    color_name: meta?.color_name ?? row.color_name ?? null,
-                  };
-                }),
-              );
-            } else {
-              setInventoryHistory(baseRows);
-            }
-          } else {
-            setInventoryHistory([]);
-          }
-        } else {
-          setInventoryHistory([]);
-        }
-      }
-
-      // Fetch returns (all statuses)
-      const { data: returnsData, error: returnsError } = await supabase
-        .from("purchase_returns")
-        .select("id, return_date, total_amount, status, return_no")
-        .eq("purchase_id", purchaseId)
-        .order("return_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (returnsError) throw returnsError;
-      setReturns(
-        returnsData?.map((ret) => ({
-          ...ret,
-          return_no: ret.return_no || ret.id.substring(0, 8),
-        })) || [],
-      );
-    } catch (err: unknown) {
-      setError(getErrorMessageLocal(err));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function fetchCompanyBanks() {
     const { data } = await supabase
@@ -377,6 +136,7 @@ export default function PurchaseDetail() {
       });
       if (error) throw error;
       setDeleteSuccess("Draft berhasil dihapus, kembali ke daftar...");
+      queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
       setTimeout(() => navigate("/purchases/history"), 700);
     } catch (err: unknown) {
       if (err instanceof Error) setDeleteError(err.message);
@@ -421,7 +181,8 @@ export default function PurchaseDetail() {
           ? "Purchase posted. Journal skipped (total 0 untuk FINISHED_GOOD)."
           : "Purchase posted successfully!"
       );
-      fetchPurchaseDetail(purchase.id);
+      queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
+      refetch();
     } catch (err: unknown) {
       if (err instanceof Error) setPostError(err.message || "Failed to post purchase");
     } finally {
@@ -435,10 +196,10 @@ export default function PurchaseDetail() {
   }, [purchase?.id, purchase?.purchase_no]);
 
   const handleDownloadImage = async () => {
-    if (!printRef.current) return;
+    if (!imageRef.current) return;
     setDownloadError(null);
     try {
-      const source = printRef.current;
+      const source = imageRef.current;
       const clone = source.cloneNode(true) as HTMLDivElement;
       clone.style.position = "fixed";
       clone.style.left = "0";
@@ -453,7 +214,7 @@ export default function PurchaseDetail() {
       clone.style.height = "auto";
       clone.style.maxHeight = "none";
       document.body.appendChild(clone);
-      const captureHeight = Math.max(555, clone.scrollHeight);
+      const captureHeight = Math.max(1, clone.scrollHeight);
       const dataUrl = await toPng(clone, {
         cacheBust: true,
         pixelRatio: 2,
@@ -705,7 +466,7 @@ export default function PurchaseDetail() {
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6 print:space-y-0">
       <div className="flex flex-col gap-3 print:hidden">
         <div className="flex justify-between items-center">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -968,7 +729,7 @@ export default function PurchaseDetail() {
 
       <div
         ref={printRef}
-        className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto"
+        className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto print:!mt-0"
       >
         <PurchaseInvoicePrint
           data={{
@@ -988,6 +749,31 @@ export default function PurchaseDetail() {
           }}
           banks={companyBanks}
           visibleOnScreen
+        />
+      </div>
+      <div
+        ref={imageRef}
+        className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:hidden"
+      >
+        <PurchaseInvoicePrint
+          data={{
+            id: purchase.id,
+            purchase_no: purchase.purchase_no,
+            purchase_date: purchase.purchase_date,
+            vendor_name: purchase.vendor_name,
+            terms: purchase.terms,
+            total_amount: displayTotal,
+            discount_amount: purchase.discount_amount,
+            notes: purchase.notes,
+            payment_method_code: purchase.payment_method_code
+          }}
+          items={items}
+          company={{
+            name: "ZIYADA SPORT",
+          }}
+          banks={companyBanks}
+          visibleOnScreen
+          mode="image"
         />
       </div>
 

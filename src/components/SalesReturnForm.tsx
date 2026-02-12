@@ -13,6 +13,7 @@ import { useConfirm } from "./ui/ConfirmDialogContext";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from '../hooks/useQueries';
 
 type Sale = {
     id: string
@@ -53,6 +54,7 @@ type Props = {
 export function SalesReturnForm({ onSuccess, onError }: Props) {
     const navigate = useNavigate()
     const { confirm } = useConfirm()
+    const queryClient = useQueryClient()
     const [postedSales, setPostedSales] = useState<Sale[]>([])
     const [selectedSaleId, setSelectedSaleId] = useState('')
     const [salesItems, setSalesItems] = useState<SaleItem[]>([])
@@ -326,6 +328,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Updated: ${draftId}`)
+                queryClient.invalidateQueries({ queryKey: ["sales-return-detail", draftId] })
+                queryClient.invalidateQueries({ queryKey: ["sales-returns-history"] })
                 navigate(`/sales-returns/${draftId}`)
             } else {
                 // 1. Header
@@ -360,6 +364,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Created: ${retData.id}`)
+                queryClient.invalidateQueries({ queryKey: ["sales-return-detail", retData.id] })
+                queryClient.invalidateQueries({ queryKey: ["sales-returns-history"] })
                 navigate(`/sales-returns/${retData.id}`)
             }
 

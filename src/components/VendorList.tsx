@@ -1,4 +1,4 @@
-import { useMemo, useState, memo } from 'react'
+import { useEffect, useMemo, useState, memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -7,6 +7,8 @@ import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
 import { type Vendor } from './VendorForm'
 import { useDebounce } from '../hooks/useDebounce'
+import { usePagination } from '../hooks/usePagination'
+import { Pagination } from './ui/Pagination'
 
 interface VendorListProps {
     vendors: Vendor[]
@@ -15,9 +17,10 @@ interface VendorListProps {
     onDelete: (id: string) => void
     onView: (vendor: Vendor) => void
     onCreatePurchase: (vendor: Vendor) => void
+    onPrefetch?: (id: string) => void
 }
 
-function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurchase }: VendorListProps) {
+function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurchase, onPrefetch }: VendorListProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const debouncedSearch = useDebounce(searchTerm, 350)
 
@@ -28,6 +31,17 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
             (v.address && v.address.toLowerCase().includes(debouncedSearch.toLowerCase()))
         )
     ), [vendors, debouncedSearch])
+
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 15 })
+
+    useEffect(() => {
+        setPage(1)
+    }, [debouncedSearch, setPage])
+
+    const pagedVendors = useMemo(
+        () => filteredVendors.slice(range[0], range[1] + 1),
+        [filteredVendors, range]
+    )
 
     const getTypeLabel = (type?: Vendor['vendor_type']) => {
         switch (type) {
@@ -69,16 +83,17 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow> : filteredVendors.map(v => (
-                                <TableRow key={v.id} className={!v.is_active ? 'bg-gray-100 opacity-60' : ''}>
+                            {loading ? <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow> : pagedVendors.map(v => (
+                                <TableRow
+                                    key={v.id}
+                                    className={!v.is_active ? 'bg-gray-100 opacity-60' : ''}
+                                    onClick={() => onView(v)}
+                                    onMouseEnter={() => onPrefetch?.(v.id)}
+                                >
                                     <TableCell className="font-medium">
-                                        <button
-                                            type="button"
-                                            onClick={() => onView(v)}
-                                            className="text-left text-slate-900 hover:text-blue-700"
-                                        >
+                                        <div className="text-left text-slate-900">
                                             {v.name}
-                                        </button>
+                                        </div>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline">{getTypeLabel(v.vendor_type)}</Badge>
@@ -92,13 +107,37 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex justify-end gap-1">
-                                            <Button size="sm" variant="outline" onClick={() => onCreatePurchase(v)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onCreatePurchase(v);
+                                                }}
+                                                className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
+                                            >
                                                 <Icons.Cart className="w-[20px] h-[20px]" />
                                             </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => onEdit(v)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEdit(v);
+                                                }}
+                                                className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
+                                            >
                                                 <Icons.Edit className="w-[22px] h-[22px]" />
                                             </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => onDelete(v.id)} className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDelete(v.id);
+                                                }}
+                                                className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600"
+                                            >
                                                 <Icons.Trash className="w-[22px] h-[22px]" />
                                             </Button>
                                         </div>
@@ -108,6 +147,13 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
                         </TableBody>
                     </Table>
                 </div>
+                <Pagination
+                    currentPage={page}
+                    totalCount={filteredVendors.length}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    isLoading={loading}
+                />
             </CardContent>
         </Card>
     )

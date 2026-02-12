@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
+import { useSalesDetailQuery, useQueryClient } from "../hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import {
   Table,
@@ -39,38 +40,6 @@ type SalesDetail = {
   created_at: string;
 };
 
-type SalesItem = {
-  id: string;
-  item_id: string;
-  item_name: string;
-  sku: string;
-  size_name?: string;
-  color_name?: string;
-  uom_snapshot: string;
-  qty: number;
-  unit_price: number;
-  subtotal: number;
-};
-
-type RelatedDoc = {
-  journal_id?: string;
-  journal_date?: string;
-  receipt_id?: string;
-  receipt_amount?: number;
-  ar_invoice_id?: string;
-  ar_total?: number;
-  ar_outstanding?: number;
-  ar_status?: string;
-};
-
-type SalesReturnSummary = {
-  id: string;
-  return_date: string;
-  total_amount: number;
-  status: "DRAFT" | "POSTED" | "VOID";
-  return_no?: string | null;
-};
-
 type CompanyProfile = {
   name: string;
   address: string;
@@ -94,14 +63,21 @@ type CompanyBank = {
 export default function SalesDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [sale, setSale] = useState<SalesDetail | null>(null);
-  const [items, setItems] = useState<SalesItem[]>([]);
-  const [relatedDocs, setRelatedDocs] = useState<RelatedDoc>({});
-  const [returns, setReturns] = useState<SalesReturnSummary[]>([]);
+  const queryClient = useQueryClient();
+
+  // --- React Query for all detail data ---
+  const { data: detailData, isLoading: loading, error: fetchError, refetch } = useSalesDetailQuery(id);
+  const sale = detailData?.sale ?? null;
+  const items = useMemo(() => detailData?.items ?? [], [detailData?.items]);
+  const relatedDocs = detailData?.relatedDocs ?? {};
+  const returns = detailData?.returns ?? [];
+  const error = fetchError ? getErrorMessage(fetchError, "Failed to fetch sales detail") : null;
+
+  // --- Company profile & banks (separate, lightweight) ---
   const [company, setCompany] = useState<CompanyProfile | null>(null);
   const [companyBanks, setCompanyBanks] = useState<CompanyBank[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // --- Action state (unchanged) ---
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -110,6 +86,7 @@ export default function SalesDetail() {
   const [isPosting, setIsPosting] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement | null>(null);
+  const imageRef = useRef<HTMLDivElement | null>(null);
   const { confirm } = useConfirm();
   const itemsTotal = useMemo(
     () => items.reduce((sum, item) => sum + (item.subtotal || 0), 0),
@@ -123,223 +100,10 @@ export default function SalesDetail() {
 
   useEffect(() => {
     if (id) {
-      fetchSaleDetail(id);
       fetchCompanyProfile();
       fetchCompanyBanks();
     }
   }, [id]);
-
-  async function fetchSaleDetail(saleId: string) {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Fetch header
-      const { data: saleData, error: saleError } = await supabase
-        .from("sales")
-        .select(
-          `
-                    id,
-                    sales_date,
-                    sales_no,
-                    customer_id,
-                    terms,
-                    payment_method_code,
-                    total_amount,
-                    shipping_fee,
-                    discount_amount,
-                    status,
-                    notes,
-                    created_at,
-                    customers (
-                        name,
-                        customer_type
-                    )
-                `,
-        )
-        .eq("id", saleId)
-        .single();
-
-      if (saleError) throw saleError;
-
-      setSale({
-        ...saleData,
-        customer_name: (saleData.customers as unknown as { name: string })?.name || "Unknown",
-        customer_type: (saleData.customers as unknown as { customer_type: string })?.customer_type || "UMUM",
-      });
-
-      // payment method label not needed in print layout
-
-      // Fetch items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("sales_items")
-        .select(
-          `
-                    id,
-                    item_id,
-                    qty,
-                    unit_price,
-                    subtotal,
-                    uom_snapshot,
-                    items (
-                        name,
-                        sku,
-                        price_default,
-                        price_khusus,
-                        sizes ( name ),
-                        colors ( name )
-                    )
-                `,
-        )
-        .eq("sales_id", saleId);
-
-      if (itemsError) throw itemsError;
-
-      let customPriceMap: Record<string, number> = {};
-      if (saleData.status === "DRAFT" && saleData.customers) {
-        const customerType =
-          (saleData.customers as unknown as { customer_type?: string })?.customer_type ||
-          "UMUM";
-        if (customerType === "CUSTOM") {
-          const { data: priceData } = await supabase
-            .from("customer_item_prices")
-            .select("item_id, price")
-            .eq("customer_id", saleData.customer_id)
-            .eq("is_active", true);
-          customPriceMap = (priceData || []).reduce((acc, row) => {
-            acc[row.item_id as string] = Number(row.price);
-            return acc;
-          }, {} as Record<string, number>);
-        }
-      }
-
-      const normalizedItems =
-        itemsData?.map((item) => {
-          const iData = item.items as unknown as {
-            name?: string;
-            sku?: string;
-            price_default?: number | null;
-            price_khusus?: number | null;
-            sizes?: { name: string };
-            colors?: { name: string };
-          };
-          const basePrice = Number(iData?.price_default || 0);
-          const khususPrice = Number(iData?.price_khusus || basePrice);
-          const customerType =
-            (saleData.customers as unknown as { customer_type?: string })?.customer_type ||
-            "UMUM";
-          let nextPrice = Number(item.unit_price);
-          if (saleData.status === "DRAFT") {
-            if (customerType === "CUSTOM") {
-              nextPrice = customPriceMap[item.item_id] ?? basePrice;
-            } else if (customerType === "KHUSUS") {
-              nextPrice = khususPrice;
-            } else {
-              nextPrice = basePrice;
-            }
-          }
-          return {
-            ...item,
-            unit_price: nextPrice,
-            subtotal: item.qty * nextPrice,
-            item_name: iData?.name || "Unknown",
-            sku: iData?.sku || "",
-            size_name: iData?.sizes?.name || undefined,
-            color_name: iData?.colors?.name || undefined,
-          };
-        }) || [];
-
-      // Merge duplicate lines (same item + price) for cleaner draft view
-      const mergedMap = new Map<string, SalesItem>();
-      normalizedItems.forEach((item) => {
-        const key = `${item.item_id}::${item.unit_price}`;
-        const existing = mergedMap.get(key);
-        if (!existing) {
-          mergedMap.set(key, { ...item });
-          return;
-        }
-        const mergedQty = existing.qty + item.qty;
-        mergedMap.set(key, {
-          ...existing,
-          qty: mergedQty,
-          subtotal: existing.subtotal + item.subtotal,
-        });
-      });
-
-      setItems(Array.from(mergedMap.values()));
-
-      // Fetch related documents (only if POSTED)
-      if (saleData.status === "POSTED") {
-        const related: RelatedDoc = {};
-
-        // Journal
-        const { data: journalData } = await supabase
-          .from("journals")
-          .select("id, journal_date")
-          .eq("ref_type", "sales")
-          .eq("ref_id", saleId)
-          .single();
-
-        if (journalData) {
-          related.journal_id = journalData.id;
-          related.journal_date = journalData.journal_date;
-        }
-
-        // Receipt (if CASH)
-        if (saleData.terms === "CASH") {
-          const { data: receiptData } = await supabase
-            .from("receipts")
-            .select("id, amount")
-            .eq("ref_type", "sales")
-            .eq("ref_id", saleId)
-            .single();
-
-          if (receiptData) {
-            related.receipt_id = receiptData.id;
-            related.receipt_amount = receiptData.amount;
-          }
-        }
-
-        // AR Invoice (if CREDIT)
-        if (saleData.terms === "CREDIT") {
-          const { data: arData } = await supabase
-            .from("ar_invoices")
-            .select("id, total_amount, outstanding_amount, status")
-            .eq("sales_id", saleId)
-            .single();
-
-          if (arData) {
-            related.ar_invoice_id = arData.id;
-            related.ar_total = arData.total_amount;
-            related.ar_outstanding = arData.outstanding_amount;
-            related.ar_status = arData.status;
-          }
-        }
-
-        setRelatedDocs(related);
-      }
-
-      // Fetch returns (all statuses)
-      const { data: returnsData, error: returnsError } = await supabase
-        .from("sales_returns")
-        .select("id, return_date, total_amount, status, return_no")
-        .eq("sales_id", saleId)
-        .order("return_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (returnsError) throw returnsError;
-      setReturns(
-        returnsData?.map((ret) => ({
-          ...ret,
-          return_no: ret.return_no || ret.id.substring(0, 8),
-        })) || [],
-      );
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, "Failed to fetch sales detail"));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function fetchCompanyProfile() {
     const { data } = await supabase
@@ -378,6 +142,7 @@ export default function SalesDetail() {
       });
       if (error) throw error;
       setDeleteSuccess("Draft berhasil dihapus, kembali ke daftar...");
+      queryClient.invalidateQueries({ queryKey: ["sales-history"] });
       setTimeout(() => navigate("/sales/history"), 700);
     } catch (err: unknown) {
       if (err instanceof Error) setDeleteError(err.message);
@@ -417,7 +182,8 @@ export default function SalesDetail() {
       }
 
       setPostSuccess("Sales posted successfully!");
-      fetchSaleDetail(sale.id);
+      queryClient.invalidateQueries({ queryKey: ["sales-history"] });
+      refetch();
     } catch (err: unknown) {
       if (err instanceof Error) setPostError(err.message || "Failed to post sales");
     } finally {
@@ -452,10 +218,10 @@ export default function SalesDetail() {
   }, [sale?.id, sale?.sales_no]);
 
   const handleDownloadImage = async () => {
-    if (!printRef.current) return;
+    if (!imageRef.current) return;
     setDownloadError(null);
     try {
-      const source = printRef.current;
+      const source = imageRef.current;
       const clone = source.cloneNode(true) as HTMLDivElement;
       clone.style.position = "fixed";
       clone.style.left = "0";
@@ -470,7 +236,7 @@ export default function SalesDetail() {
       clone.style.height = "auto";
       clone.style.maxHeight = "none";
       document.body.appendChild(clone);
-      const captureHeight = Math.max(555, clone.scrollHeight);
+      const captureHeight = Math.max(1, clone.scrollHeight);
       const dataUrl = await toPng(clone, {
         cacheBust: true,
         pixelRatio: 2,
@@ -541,7 +307,7 @@ export default function SalesDetail() {
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6 print:space-y-0">
       <div className="flex flex-col gap-3 print:hidden">
         <div className="flex justify-between items-center">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -1002,7 +768,7 @@ export default function SalesDetail() {
       {sale && (
         <div
           ref={printRef}
-          className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto"
+          className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto print:!mt-0"
         >
           <SalesInvoicePrint
             data={{
@@ -1020,6 +786,31 @@ export default function SalesDetail() {
             company={company}
             banks={companyBanks}
             visibleOnScreen
+          />
+        </div>
+      )}
+      {sale && (
+        <div
+          ref={imageRef}
+          className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:hidden"
+        >
+          <SalesInvoicePrint
+            data={{
+              id: sale.id,
+              sales_no: sale.sales_no,
+              sales_date: sale.sales_date,
+              customer_name: sale.customer_name,
+              terms: sale.terms,
+              total_amount: displayTotal,
+              shipping_fee: sale.shipping_fee,
+              discount_amount: sale.discount_amount,
+              notes: sale.notes
+            }}
+            items={items}
+            company={company}
+            banks={companyBanks}
+            visibleOnScreen
+            mode="image"
           />
         </div>
       )}

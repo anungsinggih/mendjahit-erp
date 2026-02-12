@@ -7,6 +7,7 @@ import { Icons } from './ui/Icons'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { StatusBadge } from './ui/StatusBadge'
 import { formatCurrency, safeDocNo } from '../lib/format'
+import { prefetchSalesDetail, prefetchPurchaseDetail, useQueryClient } from '../hooks/useQueries'
 import { PageHeader } from './ui/PageHeader'
 import { Section } from './ui/Section'
 import { Badge } from './ui/Badge'
@@ -74,6 +75,7 @@ type StockTrendPoint = {
 
 export default function Dashboard({ isOwner }: { isOwner: boolean }) {
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -806,7 +808,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                     <Card className="lg:col-span-1 shadow-md border-slate-200 flex flex-col">
                         <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
                             <CardTitle className="text-base font-bold text-slate-800">Recent Sales</CardTitle>
-                            <Button variant="ghost" size="sm" className="h-6 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2" onClick={() => navigate('/sales')}>
+                            <Button variant="ghost" size="sm" className="h-6 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2" onClick={() => navigate('/sales/history')}>
                                 View All
                             </Button>
                         </CardHeader>
@@ -814,7 +816,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                             <Table>
                                 <TableBody>
                                     {metrics?.recent_sales?.map((sale) => (
-                                        <TableRow key={sale.id} className="cursor-pointer hover:bg-indigo-50/50 transition-colors group" onClick={() => navigate(`/sales/${sale.id}`)}>
+                                        <TableRow key={sale.id} className="cursor-pointer hover:bg-indigo-50/50 transition-colors group" onClick={() => navigate(`/sales/${sale.id}`)} onMouseEnter={() => prefetchSalesDetail(queryClient, sale.id)}>
                                             <TableCell className="py-3">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-mono text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded group-hover:bg-white group-hover:text-indigo-600 transition-colors">
@@ -845,7 +847,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                     <Card className="lg:col-span-1 shadow-md border-slate-200 flex flex-col">
                         <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
                             <CardTitle className="text-base font-bold text-slate-800">Recent Purchases</CardTitle>
-                            <Button variant="ghost" size="sm" className="h-6 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2" onClick={() => navigate('/purchases')}>
+                            <Button variant="ghost" size="sm" className="h-6 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2" onClick={() => navigate('/purchases/history')}>
                                 View All
                             </Button>
                         </CardHeader>
@@ -853,7 +855,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                             <Table>
                                 <TableBody>
                                     {metrics?.recent_purchases?.map((purchase) => (
-                                        <TableRow key={purchase.id} className="cursor-pointer hover:bg-indigo-50/50 transition-colors group" onClick={() => navigate(`/purchases/${purchase.id}`)}>
+                                        <TableRow key={purchase.id} className="cursor-pointer hover:bg-indigo-50/50 transition-colors group" onClick={() => navigate(`/purchases/${purchase.id}`)} onMouseEnter={() => prefetchPurchaseDetail(queryClient, purchase.id)}>
                                             <TableCell className="py-3">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-mono text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded group-hover:bg-white group-hover:text-indigo-600 transition-colors">

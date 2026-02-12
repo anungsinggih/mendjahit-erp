@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
+import { ButtonSelect } from "./ui/ButtonSelect";
 import { Input } from "./ui/Input";
 import {
   Table,
@@ -116,6 +117,9 @@ const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string)
   const css = `
     @page { size: A4; margin: 16mm; }
     body { font-family: "Inter", Arial, sans-serif; color: #0f172a; }
+    .toolbar { display: flex; justify-content: flex-end; margin: 0 0 12px; }
+    .btn { background: #0f172a; color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; }
+    .btn:hover { background: #1e293b; }
     h1 { font-size: 18px; margin: 0 0 6px; }
     .meta { font-size: 12px; color: #475569; margin-bottom: 16px; display: flex; justify-content: space-between; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -123,6 +127,7 @@ const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string)
     th { text-align: left; background: #f8fafc; font-weight: 600; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
     .section { margin-top: 16px; }
+    @media print { .no-print { display: none !important; } }
   `;
   win.document.write(`
     <html>
@@ -131,6 +136,9 @@ const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string)
         <style>${css}</style>
       </head>
       <body>
+        <div class="toolbar no-print">
+          <button class="btn" onclick="window.print()">Print / Save PDF</button>
+        </div>
         <h1>${title}</h1>
         <div class="meta">
           <div>Period: ${period.start_date} – ${period.end_date}</div>
@@ -142,7 +150,6 @@ const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string)
   `);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 300);
 };
 
 export default function PeriodLock() {
@@ -186,6 +193,16 @@ export default function PeriodLock() {
   // Exports
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
   const [logs, setLogs] = useState<ExportLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [exportType, setExportType] = useState("TB");
+  const [exportFormat, setExportFormat] = useState<"PDF" | "CSV">("PDF");
+  const [exporting, setExporting] = useState(false);
+  const existingExport = logs.find(
+    (log) => log.report_type === `${exportType}_${exportFormat}`
+  );
+  const existingExportStamp = existingExport?.exported_at
+    ? new Date(existingExport.exported_at).toLocaleString()
+    : null;
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [closingPeriod, setClosingPeriod] = useState<Period | null>(null);
   const [closingAmount, setClosingAmount] = useState<number | null>(null);
@@ -255,6 +272,8 @@ export default function PeriodLock() {
   // -- 2. EXPORTS OPS --
   const fetchLogs = useCallback(async (periodId: string) => {
     setSelectedPeriodId(periodId);
+    setLogsLoading(true);
+    setLogs([]);
     const { data, error } = await supabase
       .from("period_exports")
       .select("*")
@@ -263,6 +282,7 @@ export default function PeriodLock() {
 
     if (error) setError(error.message);
     else setLogs(data || []);
+    setLogsLoading(false);
   }, []);
 
   const fetchPeriodInfo = useCallback(async () => {
@@ -351,7 +371,11 @@ export default function PeriodLock() {
     }
   };
 
-  async function handleExport(type: string, format: "CSV" | "PDF" = "CSV") {
+  async function handleExport(
+    type: string,
+    format: "CSV" | "PDF" = "CSV",
+    skipLog = false,
+  ) {
     if (!selectedPeriodId) return;
     setError(null);
     const periodInfo = await fetchPeriodInfo();
@@ -490,20 +514,38 @@ export default function PeriodLock() {
         }
       }
 
-      const { error: logError } = await supabase.rpc(
-        "rpc_export_period_reports",
-        {
-          p_period_id: selectedPeriodId,
-          p_report_type: `${type}_${format}`,
-          p_notes: "Manual Export via UI",
-        }
-      );
-      if (logError) setError(logError.message);
-      fetchLogs(selectedPeriodId);
+      if (!skipLog) {
+        const { error: logError } = await supabase.rpc(
+          "rpc_export_period_reports",
+          {
+            p_period_id: selectedPeriodId,
+            p_report_type: `${type}_${format}`,
+            p_notes: "Manual Export via UI",
+          }
+        );
+        if (logError) setError(logError.message);
+        fetchLogs(selectedPeriodId);
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     }
   }
+
+  const handleExportClick = async () => {
+    if (!selectedPeriodId || exporting) return;
+    setExporting(true);
+    try {
+      await handleExport(exportType, exportFormat, !!existingExport);
+      if (existingExport) {
+        setSuccess(
+          `Export ${exportType} (${exportFormat}) dibuka dari log ${existingExportStamp ? `(${existingExportStamp})` : ""
+          } tanpa membuat log baru.`
+        );
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Use effects at the end of definitions
   useEffect(() => {
@@ -624,43 +666,52 @@ export default function PeriodLock() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="flex flex-wrap gap-4 mb-6">
-              <Button
-                onClick={() => handleExport("GL", "CSV")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                Export GL (CSV)
-              </Button>
-              <Button
-                onClick={() => handleExport("TB", "CSV")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                Export Trial Balance (CSV)
-              </Button>
-              <Button
-                onClick={() => handleExport("PL", "CSV")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                Export P&L (CSV)
-              </Button>
-              <Button
-                onClick={() => handleExport("GL", "PDF")}
-                variant="outline"
-              >
-                Export GL (PDF)
-              </Button>
-              <Button
-                onClick={() => handleExport("TB", "PDF")}
-                variant="outline"
-              >
-                Export Trial Balance (PDF)
-              </Button>
-              <Button
-                onClick={() => handleExport("PL", "PDF")}
-                variant="outline"
-              >
-                Export P&L (PDF)
-              </Button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <ButtonSelect
+                label="Report"
+                value={exportType}
+                onChange={setExportType}
+                options={[
+                  { label: "Trial Balance", value: "TB" },
+                  { label: "Profit & Loss", value: "PL" },
+                  { label: "General Ledger", value: "GL" },
+                ]}
+              />
+              <ButtonSelect
+                label="Format"
+                value={exportFormat}
+                onChange={(val) => setExportFormat(val as "PDF" | "CSV")}
+                options={[
+                  { label: "PDF (Preview)", value: "PDF" },
+                  { label: "CSV (Download)", value: "CSV" },
+                ]}
+              />
+              <div className="flex flex-col justify-end gap-2">
+                {existingExport && (
+                  <p className="text-xs text-amber-600">
+                    Sudah ada di log untuk report ini{existingExportStamp ? ` (${existingExportStamp})` : ""}. Klik Export untuk membuka preview tanpa membuat log baru.
+                  </p>
+                )}
+                <Button
+                  onClick={handleExportClick}
+                  disabled={
+                    exporting ||
+                    logsLoading
+                  }
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white h-10"
+                >
+                  {exporting
+                    ? "Exporting..."
+                    : existingExport
+                      ? exportFormat === "PDF"
+                        ? "Open Preview"
+                        : "Download CSV"
+                      : "Export"}
+                </Button>
+                <p className="text-xs text-slate-500">
+                  PDF akan dibuka di tab baru, CSV akan terunduh otomatis.
+                </p>
+              </div>
             </div>
 
             <h4 className="font-semibold text-gray-700 mb-2">Export Logs</h4>

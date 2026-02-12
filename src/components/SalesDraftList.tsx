@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -7,6 +7,8 @@ import { StatusBadge } from "./ui/StatusBadge";
 import { useNavigate } from "react-router-dom";
 import { getErrorMessage } from "../lib/errors";
 import { useConfirm } from "./ui/ConfirmDialogContext";
+import { usePagination } from "../hooks/usePagination";
+import { Pagination } from "./ui/Pagination";
 
 type SalesDraft = {
     id: string;
@@ -26,6 +28,7 @@ export function SalesDraftList({ refreshTrigger, onSuccess, onError }: Props) {
     const [postingId, setPostingId] = useState<string | null>(null);
     const navigate = useNavigate();
     const { confirm } = useConfirm();
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 5 });
 
     const fetchDrafts = useCallback(async () => {
         const { data } = await supabase
@@ -39,6 +42,15 @@ export function SalesDraftList({ refreshTrigger, onSuccess, onError }: Props) {
     useEffect(() => {
         fetchDrafts();
     }, [fetchDrafts, refreshTrigger]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [drafts.length, setPage]);
+
+    const pagedDrafts = useMemo(
+        () => drafts.slice(range[0], range[1] + 1),
+        [drafts, range]
+    );
 
     async function handlePost(salesId: string) {
         const ok = await confirm({
@@ -76,53 +88,63 @@ export function SalesDraftList({ refreshTrigger, onSuccess, onError }: Props) {
                     <Icons.FileText className="w-5 h-5" /> Pending Drafts
                 </CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto p-4 max-h-[600px]">
+            <CardContent className="flex-1 p-4 flex flex-col">
                 {drafts.length === 0 ? (
                     <p className="text-gray-400 text-sm text-center py-10 italic">
                         No pending drafts found.
                     </p>
                 ) : (
-                    <ul className="space-y-4">
-                        {drafts.map((d) => {
-                            const isPosting = postingId === d.id;
-                            return (
-                            <li
-                                key={d.id}
-                                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all bg-white group"
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <div>
-                                        <div className="font-bold text-gray-900">
-                                            {d.customer?.name}
-                                        </div>
-                                        <div className="text-xs text-gray-500 mt-1 flex gap-2 items-center">
-                                            <span className="flex items-center gap-1">
-                                                <Icons.Calendar className="w-3 h-3" />{" "}
-                                                {d.sales_date}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <Icons.DollarSign className="w-3 h-3" />{" "}
-                                                {d.terms}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <StatusBadge status="DRAFT" />
-                                </div>
-                                <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                                    <Button
-                                        type="submit"
-                                        onClick={() => handlePost(d.id)}
-                                        disabled={isPosting}
-                                        className="w-full sm:w-auto min-h-[44px] bg-blue-600 hover:bg-blue-700"
-                                        icon={<Icons.Check className="w-4 h-4" />}
-                                    >
-                                        {isPosting ? "Posting..." : "Post Order"}
-                                    </Button>
-                                </div>
-                            </li>
-                            );
-                        })}
-                    </ul>
+                    <>
+                        <div className="flex-1 overflow-y-auto max-h-[520px] pr-1">
+                            <ul className="space-y-4">
+                                {pagedDrafts.map((d) => {
+                                    const isPosting = postingId === d.id;
+                                    return (
+                                        <li
+                                            key={d.id}
+                                            className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all bg-white group"
+                                        >
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <div className="font-bold text-gray-900">
+                                                        {d.customer?.name}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1 flex gap-2 items-center">
+                                                        <span className="flex items-center gap-1">
+                                                            <Icons.Calendar className="w-3 h-3" />{" "}
+                                                            {d.sales_date}
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <Icons.DollarSign className="w-3 h-3" />{" "}
+                                                            {d.terms}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge status="DRAFT" />
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                                                <Button
+                                                    type="submit"
+                                                    onClick={() => handlePost(d.id)}
+                                                    disabled={isPosting}
+                                                    className="w-full sm:w-auto min-h-[44px] bg-blue-600 hover:bg-blue-700"
+                                                    icon={<Icons.Check className="w-4 h-4" />}
+                                                >
+                                                    {isPosting ? "Posting..." : "Post Order"}
+                                                </Button>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                        <Pagination
+                            currentPage={page}
+                            totalCount={drafts.length}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                        />
+                    </>
                 )}
             </CardContent>
         </Card>

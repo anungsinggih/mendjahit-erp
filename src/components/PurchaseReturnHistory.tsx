@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
@@ -6,16 +7,30 @@ import { Icons } from './ui/Icons'
 import { EmptyState } from './ui/EmptyState'
 import { StatusBadge } from './ui/StatusBadge'
 import { formatCurrency, formatDate } from '../lib/format'
-import { usePurchaseReturnHistoryQuery } from '../hooks/useQueries'
+import { usePurchaseReturnHistoryQuery, prefetchPurchaseReturnDetail, useQueryClient } from '../hooks/useQueries'
+import { usePagination } from '../hooks/usePagination'
+import { Pagination } from './ui/Pagination'
 
 export default function PurchaseReturnHistory() {
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
 
     const { data, isLoading, isFetching, error: fetchError, refetch } = usePurchaseReturnHistoryQuery()
 
-    const returns = data || []
+    const returns = useMemo(() => data || [], [data])
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError instanceof Error ? fetchError.message : fetchError ? 'Failed to fetch purchase returns' : null
+
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 15 })
+
+    useEffect(() => {
+        setPage(1)
+    }, [returns.length, setPage])
+
+    const pagedReturns = useMemo(
+        () => returns.slice(range[0], range[1] + 1),
+        [returns, range]
+    )
 
     if (loading) {
         return (
@@ -48,7 +63,7 @@ export default function PurchaseReturnHistory() {
                 <CardHeader>
                     <CardTitle>All Purchase Return Documents</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                     {returns.length === 0 ? (
                         <EmptyState
                             icon={<Icons.FileText className="w-5 h-5" />}
@@ -70,11 +85,12 @@ export default function PurchaseReturnHistory() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {returns.map((ret) => (
+                                    {pagedReturns.map((ret) => (
                                         <TableRow
                                             key={ret.id}
                                             className="cursor-pointer hover:bg-slate-50"
                                             onClick={() => navigate(`/purchase-returns/${ret.id}`)}
+                                            onMouseEnter={() => prefetchPurchaseReturnDetail(queryClient, ret.id)}
                                         >
                                             <TableCell>{formatDate(ret.return_date)}</TableCell>
                                             <TableCell className="font-mono text-sm">
@@ -111,6 +127,13 @@ export default function PurchaseReturnHistory() {
                             </Table>
                         </div>
                     )}
+                    <Pagination
+                        currentPage={page}
+                        totalCount={returns.length}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                        isLoading={loading}
+                    />
                 </CardContent>
             </Card>
         </div>

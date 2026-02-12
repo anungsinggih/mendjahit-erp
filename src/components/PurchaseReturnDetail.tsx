@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { getErrorMessage } from "../lib/errors";
 import { useNavigate, useParams } from 'react-router-dom'
+import { usePurchaseReturnDetailQuery, useQueryClient } from '../hooks/useQueries'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { formatCurrency, formatDate, safeDocNo } from '../lib/format'
@@ -36,111 +37,20 @@ type ReturnItem = {
 export default function PurchaseReturnDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
-    const [returnDoc, setReturnDoc] = useState<PurchaseReturnDetail | null>(null)
-    const [items, setItems] = useState<ReturnItem[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const queryClient = useQueryClient()
+
+    // --- React Query for all detail data ---
+    const { data: detailData, isLoading: loading, error: fetchError, refetch } = usePurchaseReturnDetailQuery(id)
+    const returnDoc = detailData?.returnDoc ?? null
+    const items = detailData?.items ?? []
+    const error = fetchError ? getErrorMessage(fetchError, 'Failed to fetch return detail') : null
+
+    // --- Action state ---
     const [success, setSuccess] = useState<string | null>(null)
+    const [actionError, setActionError] = useState<string | null>(null)
     const [posting, setPosting] = useState(false)
     const [deleting, setDeleting] = useState(false)
     const { confirm } = useConfirm()
-
-    const normalizeItems = useCallback((rows: ReturnItem[]) => {
-        const map = new Map<string, ReturnItem>()
-        rows.forEach((row) => {
-            const key = `${row.item_id}::${row.unit_cost}::${row.uom_snapshot}`
-            const existing = map.get(key)
-            if (!existing) {
-                map.set(key, { ...row })
-                return
-            }
-            const totalQty = existing.qty + row.qty
-            const totalSubtotal = existing.subtotal + row.subtotal
-            const weightedCost = totalQty > 0
-                ? ((existing.unit_cost * existing.qty) + (row.unit_cost * row.qty)) / totalQty
-                : existing.unit_cost
-            map.set(key, {
-                ...existing,
-                qty: totalQty,
-                subtotal: totalSubtotal,
-                unit_cost: Number(weightedCost.toFixed(4))
-            })
-        })
-        return Array.from(map.values())
-    }, [])
-
-    const fetchReturnDetail = useCallback(async (returnId: string) => {
-        setLoading(true)
-        setError(null)
-
-        try {
-            // Fetch header
-            const { data: returnData, error: returnError } = await supabase
-                .from('purchase_returns')
-                .select(`
-                    id,
-                    return_date,
-                    purchase_id,
-                    total_amount,
-                    status,
-                    payment_method_code,
-                    notes,
-                    created_at,
-                    purchases!purchase_id (
-                        purchase_no,
-                        vendors (
-                            name
-                        )
-                    )
-                `)
-                .eq('id', returnId)
-                .single()
-
-            if (returnError) throw returnError
-
-            setReturnDoc({
-                ...returnData,
-                purchase_no: (returnData.purchases as unknown as { purchase_no: string })?.purchase_no || 'N/A',
-                vendor_name: (returnData.purchases as unknown as { vendors: { name: string } })?.vendors?.name || 'Unknown'
-            })
-
-            // Fetch items
-            const { data: itemsData, error: itemsError } = await supabase
-                .from('purchase_return_items')
-                .select(`
-                    id,
-                    item_id,
-                    qty,
-                    unit_cost,
-                    subtotal,
-                    uom_snapshot,
-                    items (
-                        name,
-                        sku
-                    )
-                `)
-                .eq('purchase_return_id', returnId)
-
-            if (itemsError) throw itemsError
-
-            const mappedItems = itemsData?.map(item => ({
-                ...item,
-                item_name: (item.items as unknown as { name: string })?.name || 'Unknown',
-                sku: (item.items as unknown as { sku: string })?.sku || ''
-            })) || []
-            setItems(normalizeItems(mappedItems))
-        } catch (err: unknown) {
-            setError(getErrorMessage(err, 'Failed to fetch return detail'))
-        } finally {
-            setLoading(false)
-        }
-    }, [normalizeItems])
-
-    useEffect(() => {
-        if (id) {
-            fetchReturnDetail(id)
-        }
-    }, [id, fetchReturnDetail])
 
     async function handlePost() {
         if (!returnDoc) return
@@ -159,9 +69,10 @@ export default function PurchaseReturnDetail() {
             const { error: postError } = await supabase.rpc('rpc_post_purchase_return', { p_return_id: returnDoc.id })
             if (postError) throw postError
             setSuccess("Return POSTED Successfully!")
-            fetchReturnDetail(returnDoc.id)
+            queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
+            refetch()
         } catch (err: unknown) {
-            setError(getErrorMessage(err, 'Unknown error'))
+            setActionError(getErrorMessage(err, 'Unknown error'))
         } finally {
             setPosting(false)
         }
@@ -178,7 +89,7 @@ export default function PurchaseReturnDetail() {
         })
         if (!ok) return
         setDeleting(true)
-        setError(null)
+        setActionError(null)
         try {
             const { error: delError } = await supabase
                 .from('purchase_returns')
@@ -186,9 +97,10 @@ export default function PurchaseReturnDetail() {
                 .eq('id', returnDoc.id)
                 .eq('status', 'DRAFT')
             if (delError) throw delError
+            queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
             navigate('/purchase-returns/history')
         } catch (err: unknown) {
-            setError(getErrorMessage(err, 'Failed to delete return'))
+            setActionError(getErrorMessage(err, 'Failed to delete return'))
         } finally {
             setDeleting(false)
         }
@@ -203,11 +115,13 @@ export default function PurchaseReturnDetail() {
         )
     }
 
-    if (error || !returnDoc) {
+    const displayError = error || actionError
+
+    if (displayError || !returnDoc) {
         return (
             <div className="w-full p-8">
                 <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-center gap-2">
-                    <Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error || 'Return not found'}
+                    <Icons.Warning className="w-5 h-5 flex-shrink-0" /> {displayError || 'Return not found'}
                 </div>
                 <Button onClick={() => navigate('/purchase-returns/history')} className="mt-4">
                     ← Back to List

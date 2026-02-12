@@ -9,11 +9,12 @@ import VendorForm, { type Vendor } from './VendorForm'
 import { getErrorMessage } from '../lib/errors'
 import { formatCurrency } from '../lib/format'
 import { useNavigate } from 'react-router-dom'
-import { useVendorsQuery, useVendorOutstandingQuery } from '../hooks/useQueries'
+import { useVendorsQuery, useVendorOutstandingQuery, prefetchVendorDetail, useQueryClient } from '../hooks/useQueries'
 
 export default function Vendors() {
     const navigate = useNavigate()
     const { confirm } = useConfirm()
+    const queryClient = useQueryClient()
 
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -37,7 +38,8 @@ export default function Vendors() {
         setIsModalOpen(false)
         refetch()
         refetchOutstanding()
-    }, [refetch, refetchOutstanding])
+        queryClient.invalidateQueries({ queryKey: ["vendor-detail"] })
+    }, [refetch, refetchOutstanding, queryClient])
 
     const handleAddVendor = useCallback(() => {
         setEditingVendor(null)
@@ -52,6 +54,10 @@ export default function Vendors() {
     const handleView = useCallback((vendor: Vendor) => {
         navigate(`/vendors/${vendor.id}`)
     }, [navigate])
+
+    const handlePrefetch = useCallback((id: string) => {
+        prefetchVendorDetail(queryClient, id)
+    }, [queryClient])
 
     const handleCreatePurchase = useCallback((vendor: Vendor) => {
         navigate(`/purchases?vendor=${vendor.id}`)
@@ -78,8 +84,9 @@ export default function Vendors() {
         else {
             refetch()
             refetchOutstanding()
+            queryClient.invalidateQueries({ queryKey: ["vendor-detail", id] })
         }
-    }, [confirm, refetch, refetchOutstanding])
+    }, [confirm, refetch, refetchOutstanding, queryClient])
 
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
@@ -145,6 +152,7 @@ export default function Vendors() {
                 onDelete={handleDelete}
                 onView={handleView}
                 onCreatePurchase={handleCreatePurchase}
+                onPrefetch={handlePrefetch}
             />
 
             <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>

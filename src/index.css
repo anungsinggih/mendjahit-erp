@@ -92,7 +92,7 @@
 
 @media print {
   @page {
-    margin: 1cm;
+    margin: 0;
     size: A4;
   }
 
@@ -147,7 +147,7 @@
   table,
   th,
   td {
-    font-size: 11pt !important;
+    font-size: 11pt;
   }
 
   /* Remove auto-printed link URLs */
