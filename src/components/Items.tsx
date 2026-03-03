@@ -18,6 +18,7 @@ import { Section } from './ui/Section'
 import { ResponsiveTable } from './ui/ResponsiveTable'
 import { getErrorMessage } from '../lib/errors'
 import { useItemsQuery } from '../hooks/useQueries'
+import * as XLSX from 'xlsx'
 
 import type { Item } from "../types/shared";
 import { ITEM_TYPES, type ItemType } from "../lib/constants";
@@ -99,6 +100,7 @@ export default function Items() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isImportOpen, setIsImportOpen] = useState(false)
     const { confirm } = useConfirm()
+    const [isExporting, setIsExporting] = useState(false)
 
     const [searchTerm, setSearchTerm] = useState('')
     const debouncedSearch = useDebounce(searchTerm, 400)
@@ -120,6 +122,106 @@ export default function Items() {
     const totalCount = data?.count || 0
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
+
+    const handleExportXlsx = useCallback(async () => {
+        setIsExporting(true)
+        try {
+            const batchSize = 1000
+            let from = 0
+            const exportItems: Item[] = []
+
+            while (true) {
+                let query = supabase
+                    .from("items")
+                    .select(
+                        `
+                        *,
+                        brand:brands(name),
+                        category:categories(name),
+                        uom_detail:uoms(name, code),
+                        size:sizes(name, code),
+                        color:colors(name, code)
+                    `
+                    )
+
+                if (debouncedSearch) {
+                    query = query.or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`)
+                }
+
+                if (typeFilter !== "all") {
+                    query = query.eq("type", typeFilter)
+                }
+
+                const { data, error } = await query
+                    .order("sku", { ascending: true })
+                    .range(from, from + batchSize - 1)
+
+                if (error) throw error
+
+                const batch = (data || []) as Item[]
+                exportItems.push(...batch)
+
+                if (batch.length < batchSize) break
+                from += batchSize
+            }
+
+            if (exportItems.length === 0) {
+                await confirm({
+                    title: "No Data",
+                    description: "No product variants found for current filters.",
+                    confirmText: "OK",
+                    hideCancel: true,
+                })
+                return
+            }
+
+            const exportRows = exportItems.map((item, index) => ({
+                No: index + 1,
+                SKU: item.sku,
+                Name: item.name,
+                Brand: item.brand?.name || "",
+                Category: item.category?.name || "",
+                UOM: item.uom_detail?.code || item.uom_detail?.name || "",
+                Size: item.size?.code || item.size?.name || "",
+                Color: item.color?.code || item.color?.name || "",
+                Type: item.type,
+                Price_Umum: Number(item.price_default || 0),
+                Price_Khusus: Number(item.price_khusus || 0),
+                Active: item.is_active ? "YES" : "NO",
+            }))
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows)
+            worksheet["!cols"] = [
+                { wch: 6 },
+                { wch: 18 },
+                { wch: 36 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 16 },
+                { wch: 14 },
+                { wch: 14 },
+                { wch: 10 },
+            ]
+
+            const workbook = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(workbook, worksheet, "ProductVariants")
+
+            const dateStamp = new Date().toISOString().slice(0, 10)
+            XLSX.writeFile(workbook, `product_variants_${dateStamp}.xlsx`)
+        } catch (err) {
+            await confirm({
+                title: "Export Failed",
+                description: getErrorMessage(err, "Failed to export product variants."),
+                confirmText: "OK",
+                hideCancel: true,
+            })
+        } finally {
+            setIsExporting(false)
+        }
+    }, [confirm, debouncedSearch, typeFilter])
 
 
     function handleSuccess() {
@@ -173,6 +275,15 @@ export default function Items() {
                 breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Items" }]}
                 actions={
                     <div className="flex gap-2">
+                        <Button
+                            onClick={handleExportXlsx}
+                            variant="outline"
+                            icon={<Icons.Download className="w-4 h-4" />}
+                            isLoading={isExporting}
+                            className="w-auto"
+                        >
+                            Export XLSX
+                        </Button>
                         <Button
                             onClick={() => setIsImportOpen(true)}
                             variant="outline"
