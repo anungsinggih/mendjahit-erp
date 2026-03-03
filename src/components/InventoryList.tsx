@@ -11,6 +11,10 @@ import { Section } from "./ui/Section";
 import { ButtonSelect } from "./ui/ButtonSelect";
 import { useDebounce } from "../hooks/useDebounce";
 import { useInventoryQuery, type InventoryQueryItem } from "../hooks/useQueries";
+import * as XLSX from "xlsx";
+import { supabase } from "../supabaseClient";
+import { useConfirm } from "./ui/ConfirmDialogContext";
+import { getErrorMessage } from "../lib/errors";
 
 type Props = {
     selectedId: string | null
@@ -82,6 +86,8 @@ const InventoryRow = memo(function InventoryRow({ item, isSelected, onSelect, on
 export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }: Props) {
     const [search, setSearch] = useState("")
     const [typeFilter, setTypeFilter] = useState("ALL")
+    const [isExporting, setIsExporting] = useState(false)
+    const { confirm } = useConfirm()
     const debouncedSearch = useDebounce(search, 350)
 
     const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 20 });
@@ -102,11 +108,114 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
     const pageCount = data?.count || 0;
     const loading = isLoading || isFetching;
 
+    const handleExportXlsx = useCallback(async () => {
+        setIsExporting(true)
+        try {
+            const batchSize = 1000
+            let from = 0
+            const rows: InventoryQueryItem[] = []
+
+            while (true) {
+                let query = supabase
+                    .from("items")
+                    .select(
+                        "id, sku, name, uom, sizes(name), colors(name), inventory_stock(qty_on_hand, avg_cost)"
+                    )
+                    .eq("is_active", true)
+
+                if (debouncedSearch) {
+                    query = query.or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`)
+                }
+
+                if (typeFilter !== "ALL") {
+                    query = query.eq("type", typeFilter)
+                }
+
+                const { data: batchData, error } = await query
+                    .order("name")
+                    .range(from, from + batchSize - 1)
+
+                if (error) throw error
+
+                const batch = (batchData || []).map(d => ({
+                    ...d,
+                    size_name: (d.sizes as unknown as { name: string } | null)?.name,
+                    color_name: (d.colors as unknown as { name: string } | null)?.name,
+                    inventory_stock: Array.isArray(d.inventory_stock) ? d.inventory_stock[0] : d.inventory_stock
+                })) as InventoryQueryItem[]
+
+                rows.push(...batch)
+
+                if (batch.length < batchSize) break
+                from += batchSize
+            }
+
+            if (rows.length === 0) {
+                await confirm({
+                    title: "No Data",
+                    description: "No inventory data found for current filters.",
+                    confirmText: "OK",
+                    hideCancel: true,
+                })
+                return
+            }
+
+            const exportRows = rows.map((item, index) => ({
+                No: index + 1,
+                SKU: item.sku,
+                Name: item.name,
+                Size: item.size_name || "",
+                Color: item.color_name || "",
+                UOM: item.uom,
+                Qty_On_Hand: Number(item.inventory_stock?.qty_on_hand || 0),
+                Avg_Cost: Number(item.inventory_stock?.avg_cost || 0),
+            }))
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows)
+            worksheet["!cols"] = [
+                { wch: 6 },
+                { wch: 18 },
+                { wch: 36 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 10 },
+                { wch: 14 },
+                { wch: 14 },
+            ]
+
+            const workbook = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory")
+
+            const dateStamp = new Date().toISOString().slice(0, 10)
+            XLSX.writeFile(workbook, `inventory_${dateStamp}.xlsx`)
+        } catch (err) {
+            await confirm({
+                title: "Export Failed",
+                description: getErrorMessage(err, "Failed to export inventory data."),
+                confirmText: "OK",
+                hideCancel: true,
+            })
+        } finally {
+            setIsExporting(false)
+        }
+    }, [confirm, debouncedSearch, typeFilter])
+
     return (
         <Section
             title="Cek Stok"
             description="View and search real-time stock availability."
             className="h-full flex flex-col shadow-lg border-0 ring-1 ring-slate-900/5 bg-white overflow-hidden"
+            action={
+                <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Icons.Download className="w-4 h-4" />}
+                    onClick={handleExportXlsx}
+                    isLoading={isExporting}
+                >
+                    Export XLSX
+                </Button>
+            }
         >
             <div className="flex flex-col h-full">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
