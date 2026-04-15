@@ -27,10 +27,23 @@ type ItemRowProps = {
     item: Item
     onEdit: (item: Item) => void
     onDelete: (id: string) => void
+    isSelected: boolean
+    isSelectable: boolean
+    onToggleSelect: (id: string) => void
 }
 
-const ItemRow = memo(({ item, onEdit, onDelete }: ItemRowProps) => (
+const ItemRow = memo(({ item, onEdit, onDelete, isSelected, isSelectable, onToggleSelect }: ItemRowProps) => (
     <TableRow className="hover:bg-slate-50/80 transition-colors">
+        <TableCell className="w-12">
+            <input
+                type="checkbox"
+                checked={isSelected}
+                disabled={!isSelectable}
+                onChange={() => onToggleSelect(item.id)}
+                aria-label={`Select ${item.name}`}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+            />
+        </TableCell>
         <TableCell className="font-mono text-xs font-semibold text-slate-600">{item.sku}</TableCell>
         <TableCell>
             <div className="font-medium text-slate-900 group-hover:text-indigo-700 transition-colors">{item.name}</div>
@@ -101,6 +114,11 @@ export default function Items() {
     const [isImportOpen, setIsImportOpen] = useState(false)
     const { confirm } = useConfirm()
     const [isExporting, setIsExporting] = useState(false)
+    const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+    const [isBatchPriceModalOpen, setIsBatchPriceModalOpen] = useState(false)
+    const [batchPriceValue, setBatchPriceValue] = useState('')
+    const [batchPriceError, setBatchPriceError] = useState<string | null>(null)
+    const [isBatchSaving, setIsBatchSaving] = useState(false)
 
     const [searchTerm, setSearchTerm] = useState('')
     const debouncedSearch = useDebounce(searchTerm, 400)
@@ -122,6 +140,19 @@ export default function Items() {
     const totalCount = data?.count || 0
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
+    const isBatchPriceEligible = (item: Item) =>
+        item.type === ITEM_TYPES.FINISHED_GOOD || item.type === ITEM_TYPES.TRADED
+    const eligibleVisibleItems = filteredItems.filter(isBatchPriceEligible)
+    const eligibleVisibleIds = eligibleVisibleItems.map(item => item.id)
+    const selectedEligibleItems = eligibleVisibleItems.filter(item => selectedItemIds.includes(item.id))
+    const allEligibleVisibleSelected =
+        eligibleVisibleIds.length > 0 &&
+        eligibleVisibleIds.every(id => selectedItemIds.includes(id))
+
+    useEffect(() => {
+        const visibleEligibleIds = new Set(eligibleVisibleIds)
+        setSelectedItemIds(prev => prev.filter(id => visibleEligibleIds.has(id)))
+    }, [eligibleVisibleIds])
 
     const handleExportXlsx = useCallback(async () => {
         setIsExporting(true)
@@ -246,6 +277,79 @@ export default function Items() {
         refetch()
     }
 
+    const handleToggleItemSelection = useCallback((id: string) => {
+        setSelectedItemIds(prev =>
+            prev.includes(id)
+                ? prev.filter(existingId => existingId !== id)
+                : [...prev, id]
+        )
+    }, [])
+
+    const handleToggleSelectAllVisible = useCallback(() => {
+        setSelectedItemIds(prev => {
+            if (allEligibleVisibleSelected) {
+                return prev.filter(id => !eligibleVisibleIds.includes(id))
+            }
+
+            return Array.from(new Set([...prev, ...eligibleVisibleIds]))
+        })
+    }, [allEligibleVisibleSelected, eligibleVisibleIds])
+
+    const handleOpenBatchPriceModal = useCallback(async () => {
+        if (selectedEligibleItems.length === 0) {
+            await confirm({
+                title: "No Items Selected",
+                description: "Select one or more Finished Goods or Traded items first.",
+                confirmText: "OK",
+                hideCancel: true,
+            })
+            return
+        }
+
+        setBatchPriceValue('')
+        setBatchPriceError(null)
+        setIsBatchPriceModalOpen(true)
+    }, [confirm, selectedEligibleItems.length])
+
+    const handleBatchPriceSave = useCallback(async () => {
+        const nextPrice = Number(batchPriceValue)
+        if (batchPriceValue.trim() === '' || Number.isNaN(nextPrice) || nextPrice < 0) {
+            setBatchPriceError('Enter a valid Price (Umum) value.')
+            return
+        }
+
+        if (selectedEligibleItems.length === 0) {
+            setBatchPriceError('No eligible items selected.')
+            return
+        }
+
+        setIsBatchSaving(true)
+        setBatchPriceError(null)
+
+        try {
+            const { error } = await supabase
+                .from('items')
+                .update({ price_default: nextPrice })
+                .in('id', selectedEligibleItems.map(item => item.id))
+
+            if (error) throw error
+
+            setIsBatchPriceModalOpen(false)
+            setSelectedItemIds([])
+            await refetch()
+            await confirm({
+                title: "Batch Update Success",
+                description: `Updated Price (Umum) for ${selectedEligibleItems.length} items to ${nextPrice.toLocaleString('id-ID')}.`,
+                confirmText: "OK",
+                hideCancel: true,
+            })
+        } catch (err) {
+            setBatchPriceError(getErrorMessage(err, 'Failed to update Price (Umum).'))
+        } finally {
+            setIsBatchSaving(false)
+        }
+    }, [batchPriceValue, confirm, refetch, selectedEligibleItems])
+
     const handleDelete = useCallback(async (id: string) => {
         const ok = await confirm({
             title: "Delete Item",
@@ -320,6 +424,24 @@ export default function Items() {
                         <Button
                             variant="outline"
                             size="sm"
+                            icon={<Icons.Tag className="w-4 h-4" />}
+                            onClick={() => setSelectedItemIds([])}
+                            disabled={selectedItemIds.length === 0}
+                        >
+                            Clear Selected
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            icon={<Icons.Edit className="w-4 h-4" />}
+                            onClick={handleOpenBatchPriceModal}
+                            disabled={selectedEligibleItems.length === 0}
+                        >
+                            Batch Update Price
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
                             icon={<Icons.Settings className="w-4 h-4" />}
                             onClick={() => navigate('/attributes')}
                         >
@@ -369,10 +491,29 @@ export default function Items() {
                         </div>
                     </div>
 
+                    <div className="flex flex-col gap-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <span className="font-semibold">{selectedEligibleItems.length}</span> item selected for batch Price (Umum) update.
+                        </div>
+                        <div className="text-xs text-indigo-700">
+                            Quick version only applies to item rows you check on this page, and skips RAW_MATERIAL.
+                        </div>
+                    </div>
+
                     <ResponsiveTable minWidth="900px">
                         <Table>
                             <TableHeader>
                                 <TableRow className="hover:bg-transparent border-b border-indigo-100/50">
+                                    <TableHead className="w-12">
+                                        <input
+                                            type="checkbox"
+                                            checked={allEligibleVisibleSelected}
+                                            disabled={eligibleVisibleIds.length === 0}
+                                            onChange={handleToggleSelectAllVisible}
+                                            aria-label="Select all visible items"
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                        />
+                                    </TableHead>
                                     <TableHead className="w-[100px] text-xs uppercase tracking-wider text-slate-500">SKU</TableHead>
                                     <TableHead className="min-w-[200px] text-xs uppercase tracking-wider text-slate-500">Name / Variant</TableHead>
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Size</TableHead>
@@ -387,7 +528,7 @@ export default function Items() {
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center py-12 text-slate-500">
+                                        <TableCell colSpan={10} className="text-center py-12 text-slate-500">
                                             <div className="flex justify-center items-center gap-2">
                                                 <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
                                                 <span>Loading inventory...</span>
@@ -396,13 +537,21 @@ export default function Items() {
                                     </TableRow>
                                 ) : filteredItems.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={9} className="text-center italic py-12 text-slate-500">
+                                        <TableCell colSpan={10} className="text-center italic py-12 text-slate-500">
                                             No items found matching your criteria.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     filteredItems.map(item => (
-                                        <ItemRow key={item.id} item={item} onEdit={handleEdit} onDelete={handleDelete} />
+                                        <ItemRow
+                                            key={item.id}
+                                            item={item}
+                                            onEdit={handleEdit}
+                                            onDelete={handleDelete}
+                                            isSelected={selectedItemIds.includes(item.id)}
+                                            isSelectable={isBatchPriceEligible(item)}
+                                            onToggleSelect={handleToggleItemSelection}
+                                        />
                                     )))}
                             </TableBody>
                         </Table>
@@ -433,6 +582,90 @@ export default function Items() {
                         onSuccess={handleSuccess}
                         onCancel={() => setIsModalOpen(false)}
                     />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                isOpen={isBatchPriceModalOpen}
+                onClose={() => !isBatchSaving && setIsBatchPriceModalOpen(false)}
+                contentClassName="max-w-2xl"
+            >
+                <DialogHeader>
+                    <DialogTitle>Batch Update Price (Umum)</DialogTitle>
+                </DialogHeader>
+                <DialogContent>
+                    <div className="space-y-4">
+                        <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
+                            Applying one Price (Umum) value to <span className="font-semibold">{selectedEligibleItems.length}</span> selected items on this page.
+                        </div>
+
+                        <Input
+                            label="New Price (Umum)"
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="1"
+                            placeholder="Enter new selling price"
+                            value={batchPriceValue}
+                            onChange={(e) => {
+                                setBatchPriceValue(e.target.value)
+                                if (batchPriceError) setBatchPriceError(null)
+                            }}
+                            containerClassName="!mb-0"
+                        />
+
+                        {batchPriceError && (
+                            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                                {batchPriceError}
+                            </div>
+                        )}
+
+                        <div className="rounded-lg border border-slate-200">
+                            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                                Preview Selected Items
+                            </div>
+                            <div className="max-h-72 overflow-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="sticky top-0 bg-white">
+                                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+                                            <th className="px-4 py-2">SKU</th>
+                                            <th className="px-4 py-2">Name</th>
+                                            <th className="px-4 py-2 text-right">Current</th>
+                                            <th className="px-4 py-2 text-right">New</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {selectedEligibleItems.map(item => (
+                                            <tr key={item.id} className="border-b border-slate-100 last:border-b-0">
+                                                <td className="px-4 py-2 font-mono text-xs text-slate-600">{item.sku}</td>
+                                                <td className="px-4 py-2 text-slate-800">{item.name}</td>
+                                                <td className="px-4 py-2 text-right text-slate-600">{Number(item.price_default || 0).toLocaleString('id-ID')}</td>
+                                                <td className="px-4 py-2 text-right font-semibold text-indigo-700">
+                                                    {batchPriceValue.trim() === '' ? '-' : Number(batchPriceValue || 0).toLocaleString('id-ID')}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setIsBatchPriceModalOpen(false)}
+                                disabled={isBatchSaving}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleBatchPriceSave}
+                                isLoading={isBatchSaving}
+                            >
+                                Save Batch Update
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
 
