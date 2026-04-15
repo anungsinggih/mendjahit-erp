@@ -190,19 +190,25 @@ export default function Journals() {
 
             if (journalsError) throw journalsError
 
-            const { data: linesData, error: linesError } = await supabase
-                .from('journal_lines')
-                .select(`
-                    id,
-                    journal_id,
-                    account_id,
-                    debit,
-                    credit,
-                    accounts (
-                        code,
-                        name
-                    )
-                `)
+            const journalsList = journalsData || []
+            const journalIds = journalsList.map(journal => journal.id).filter(Boolean)
+
+            const { data: linesData, error: linesError } = journalIds.length
+                ? await supabase
+                    .from('journal_lines')
+                    .select(`
+                        id,
+                        journal_id,
+                        account_id,
+                        debit,
+                        credit,
+                        accounts (
+                            code,
+                            name
+                        )
+                    `)
+                    .in('journal_id', journalIds)
+                : { data: [], error: null }
 
             if (linesError) throw linesError
 
@@ -226,7 +232,6 @@ export default function Journals() {
             const normalizeRefType = (refType?: string) => (refType || '').toLowerCase()
             const shortId = (id?: string | null) => (id ? id.substring(0, 8) : '')
 
-            const journalsList = journalsData || []
             const collectIds = (type: string) =>
                 journalsList
                     .filter(j => normalizeRefType(j.ref_type) === type)
