@@ -1,7 +1,24 @@
 type DateInput = string | Date | null | undefined;
+type NumericInput = number | string | null | undefined;
 
-export function formatCurrency(amount: number | null | undefined): string {
-  const safeAmount = typeof amount === "number" && !Number.isNaN(amount) ? amount : 0;
+export function toNumber(value: NumericInput): number {
+  if (typeof value === "number") {
+    return Number.isNaN(value) ? 0 : value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return 0;
+
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+}
+
+export function formatCurrency(amount: NumericInput): string {
+  const safeAmount = toNumber(amount);
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",

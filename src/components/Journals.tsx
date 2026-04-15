@@ -7,7 +7,7 @@ import { Icons } from './ui/Icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { usePagination } from '../hooks/usePagination'
 import { Pagination } from './ui/Pagination'
-import { formatCurrency, formatDate } from '../lib/format'
+import { formatCurrency, formatDate, toNumber } from '../lib/format'
 import { getErrorMessage } from '../lib/errors'
 import { useDebounce } from '../hooks/useDebounce'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
@@ -43,8 +43,8 @@ const JournalEntryItem = memo(function JournalEntryItem({
     isExpanded: boolean
     onToggle: (id: string) => void
 }) {
-    const totalDebit = journal.lines.reduce((sum, line) => sum + (line.debit || 0), 0)
-    const totalCredit = journal.lines.reduce((sum, line) => sum + (line.credit || 0), 0)
+    const totalDebit = journal.lines.reduce((sum, line) => sum + toNumber(line.debit), 0)
+    const totalCredit = journal.lines.reduce((sum, line) => sum + toNumber(line.credit), 0)
     const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01
 
     // Extract reference info from memo if available (e.g. "Sales INV-001")
@@ -218,8 +218,8 @@ export default function Journals() {
                     id: line.id,
                     account_code: account?.code || '',
                     account_name: account?.name || '',
-                    debit: line.debit || 0,
-                    credit: line.credit || 0
+                    debit: toNumber(line.debit),
+                    credit: toNumber(line.credit)
                 })
             })
 
@@ -426,9 +426,9 @@ export default function Journals() {
             <div className="flex flex-col gap-1 text-sm text-gray-600 sm:flex-row sm:justify-between sm:items-center">
                 <span>Showing <strong>{filteredJournals.length}</strong> of <strong>{journals.length}</strong> journal entries</span>
                 <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                    <span>Total: {formatCurrency(journals.reduce((sum, j) => sum + j.lines.reduce((s, l) => s + l.debit + l.credit, 0), 0))}</span>
+                    <span>Total: {formatCurrency(journals.reduce((sum, j) => sum + j.lines.reduce((s, l) => s + toNumber(l.debit) + toNumber(l.credit), 0), 0))}</span>
                     <span className="hidden sm:inline-block">·</span>
-                    <span>Balanced count: {filteredJournals.filter(j => j.lines.reduce((s, l) => s + l.debit, 0) === j.lines.reduce((s, l) => s + l.credit, 0)).length}</span>
+                    <span>Balanced count: {filteredJournals.filter(j => j.lines.reduce((s, l) => s + toNumber(l.debit), 0) === j.lines.reduce((s, l) => s + toNumber(l.credit), 0)).length}</span>
                 </div>
             </div>
 
