@@ -10,6 +10,7 @@ import {
 } from "./ui/Table";
 import { Button } from "./ui/Button";
 import { ResponsiveTable } from './ui/ResponsiveTable';
+import { useDebounce } from "../hooks/useDebounce";
 // import { Section } from "./ui/Section";
 import { Icons } from "./ui/Icons";
 // import { Input } from "./ui/Input";
@@ -37,6 +38,7 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
     const [arList, setArList] = useState<AR[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
+    const debouncedSearch = useDebounce(search, 350);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [statusFilter, setStatusFilter] = useState("OUTSTANDING");
@@ -84,8 +86,8 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
             let filtered = data || [];
 
             // Client-side search for related checks if basic OR query is hard
-            if (search) {
-                const q = search.toLowerCase();
+            if (debouncedSearch) {
+                const q = debouncedSearch.toLowerCase();
                 filtered = filtered.filter(item =>
                     (item.invoice_no?.toLowerCase().includes(q)) ||
                     (item.customer?.name?.toLowerCase().includes(q))
@@ -98,7 +100,7 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
         } finally {
             setLoading(false);
         }
-    }, [search, dateFrom, dateTo, statusFilter]);
+    }, [debouncedSearch, dateFrom, dateTo, statusFilter]);
 
     useEffect(() => {
         fetchAR();

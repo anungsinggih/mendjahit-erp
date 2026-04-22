@@ -23,6 +23,15 @@ interface ItemFormProps {
     onCancel: () => void
 }
 
+function normalizeFiniteNumber(value: number | null | undefined, fallback = 0) {
+    const nextValue = Number(value)
+    return Number.isFinite(nextValue) ? nextValue : fallback
+}
+
+function normalizeText(value: string | null | undefined) {
+    return value?.trim() || ''
+}
+
 export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemFormProps) {
     const [uoms, setUoms] = useState<MasterData[]>([])
     const [sizes, setSizes] = useState<MasterData[]>([])
@@ -34,6 +43,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
 
     const [formData, setFormData] = useState<Partial<Item>>({
         sku: '', name: '', type: ITEM_TYPES.FINISHED_GOOD,
+        price_default: 0, price_khusus: 0, default_price_buy: 0,
         min_stock: 5, is_active: true
     })
 
@@ -89,36 +99,46 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
         setLoading(true)
 
         try {
-            if ((formData.price_default ?? 0) < 0 || (formData.price_khusus ?? 0) < 0 || (formData.default_price_buy ?? 0) < 0) {
+            const normalizedSku = normalizeText(formData.sku)
+            const normalizedName = normalizeText(formData.name)
+            const normalizedPriceDefault = normalizeFiniteNumber(formData.price_default)
+            const normalizedPriceKhusus = normalizeFiniteNumber(formData.price_khusus)
+            const normalizedDefaultPriceBuy = normalizeFiniteNumber(formData.default_price_buy)
+            const normalizedMinStock = normalizeFiniteNumber(formData.min_stock, 0)
+
+            if (!normalizedSku) throw new Error('SKU wajib diisi.')
+            if (!normalizedName) throw new Error('Name wajib diisi.')
+
+            if (normalizedPriceDefault < 0 || normalizedPriceKhusus < 0 || normalizedDefaultPriceBuy < 0 || normalizedMinStock < 0) {
                 throw new Error("Prices must be >= 0")
             }
 
             // Validation Logic
             if ((formData.type === ITEM_TYPES.FINISHED_GOOD || formData.type === ITEM_TYPES.TRADED)) {
-                if (!formData.price_default || formData.price_default <= 0) throw new Error("Harga Umum wajib diisi (> 0) untuk tipe ini.");
-                if (!formData.price_khusus || formData.price_khusus <= 0) throw new Error("Harga Khusus wajib diisi (> 0) untuk tipe ini.");
+                if (normalizedPriceDefault <= 0) throw new Error("Harga Umum wajib diisi (> 0) untuk tipe ini.");
+                if (normalizedPriceKhusus <= 0) throw new Error("Harga Khusus wajib diisi (> 0) untuk tipe ini.");
             }
 
             if ((formData.type === ITEM_TYPES.TRADED || formData.type === ITEM_TYPES.RAW_MATERIAL)) {
-                if (!formData.default_price_buy || formData.default_price_buy <= 0) throw new Error("Buy Price (Cost) wajib diisi (> 0) untuk tipe ini.");
+                if (normalizedDefaultPriceBuy <= 0) throw new Error("Buy Price (Cost) wajib diisi (> 0) untuk tipe ini.");
             }
 
             const selectedUom = uoms.find(u => u.id === formData.uom_id)
             const payload = {
-                sku: formData.sku,
-                name: formData.name,
+                sku: normalizedSku,
+                name: normalizedName,
                 type: formData.type,
                 uom_id: formData.uom_id,
                 size_id: formData.size_id,
                 color_id: formData.color_id,
                 brand_id: formData.brand_id || null,
                 category_id: formData.category_id || null,
-                price_default: formData.price_default,
-                price_khusus: formData.price_khusus,
-                default_price_buy: formData.type === ITEM_TYPES.FINISHED_GOOD ? 0 : formData.default_price_buy,
-                min_stock: formData.min_stock,
-                is_active: formData.is_active,
-                uom: selectedUom?.code || 'PCS'
+                price_default: normalizedPriceDefault,
+                price_khusus: normalizedPriceKhusus,
+                default_price_buy: formData.type === ITEM_TYPES.FINISHED_GOOD ? 0 : normalizedDefaultPriceBuy,
+                min_stock: normalizedMinStock,
+                is_active: formData.is_active ?? true,
+                uom: normalizeText(selectedUom?.code) || 'PCS'
             }
 
             if (existingItem?.id) {

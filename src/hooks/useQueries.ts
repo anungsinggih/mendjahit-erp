@@ -4,6 +4,21 @@ import { supabase } from "../supabaseClient"
 import type { Item, Customer, Vendor } from "../types/shared"
 
 type Range = [number, number]
+type NamedRelation = { name: string }
+type NamedCodeRelation = { name: string; code: string }
+
+function toFiniteNumber(value: unknown, fallback = 0) {
+  const nextValue = Number(value)
+  return Number.isFinite(nextValue) ? nextValue : fallback
+}
+
+function toSingleRelation<T>(value: T | T[] | null | undefined): T | undefined {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+
+  return value ?? undefined
+}
 
 export function useItemsQuery(params: {
   range: Range
@@ -42,7 +57,35 @@ export function useItemsQuery(params: {
 
       if (error) throw error
 
-      return { items: (data || []) as Item[], count: count || 0 }
+      const normalizedItems = (data || []).map((rawItem) => {
+        const item = rawItem as Item & {
+          price_default?: unknown
+          price_khusus?: unknown
+          default_price_buy?: unknown
+          min_stock?: unknown
+          brand?: NamedRelation | NamedRelation[] | null
+          category?: NamedRelation | NamedRelation[] | null
+          uom_detail?: NamedCodeRelation | NamedCodeRelation[] | null
+          size?: NamedCodeRelation | NamedCodeRelation[] | null
+          color?: NamedCodeRelation | NamedCodeRelation[] | null
+        }
+
+        return {
+          ...item,
+          price_default: toFiniteNumber(item.price_default),
+          price_khusus: toFiniteNumber(item.price_khusus),
+          default_price_buy: toFiniteNumber(item.default_price_buy),
+          min_stock: toFiniteNumber(item.min_stock),
+          is_active: item.is_active ?? true,
+          brand: toSingleRelation(item.brand),
+          category: toSingleRelation(item.category),
+          uom_detail: toSingleRelation(item.uom_detail),
+          size: toSingleRelation(item.size),
+          color: toSingleRelation(item.color),
+        }
+      })
+
+      return { items: normalizedItems as Item[], count: count || 0 }
     },
     placeholderData: keepPreviousData
   })

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, memo } from 'react'
+import { useEffect, useState, useCallback, useMemo, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
@@ -22,6 +22,13 @@ import * as XLSX from 'xlsx'
 
 import type { Item } from "../types/shared";
 import { ITEM_TYPES, type ItemType } from "../lib/constants";
+
+function formatItemPrice(value: unknown) {
+    const normalizedValue = Number(value)
+    return Number.isFinite(normalizedValue)
+        ? normalizedValue.toLocaleString('id-ID')
+        : '0'
+}
 
 type ItemRowProps = {
     item: Item
@@ -69,10 +76,10 @@ const ItemRow = memo(({ item, onEdit, onDelete, isSelected, isSelectable, onTogg
             </span>
         </TableCell>
         <TableCell className="text-right">
-            <div className="text-sm font-medium text-slate-700">{item.price_default.toLocaleString()}</div>
+            <div className="text-sm font-medium text-slate-700">{formatItemPrice(item.price_default)}</div>
         </TableCell>
         <TableCell className="text-right">
-            <div className="text-sm text-slate-500">{item.price_khusus.toLocaleString()}</div>
+            <div className="text-sm text-slate-500">{formatItemPrice(item.price_khusus)}</div>
         </TableCell>
         <TableCell className="text-center">
             {item.is_active
@@ -136,22 +143,34 @@ export default function Items() {
         setPage(1)
     }, [debouncedSearch, typeFilter, setPage])
 
-    const filteredItems = data?.items || []
+    const filteredItems = useMemo(() => data?.items ?? [], [data?.items])
     const totalCount = data?.count || 0
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
     const isBatchPriceEligible = (item: Item) =>
         item.type === ITEM_TYPES.FINISHED_GOOD || item.type === ITEM_TYPES.TRADED
-    const eligibleVisibleItems = filteredItems.filter(isBatchPriceEligible)
-    const eligibleVisibleIds = eligibleVisibleItems.map(item => item.id)
-    const selectedEligibleItems = eligibleVisibleItems.filter(item => selectedItemIds.includes(item.id))
+    const eligibleVisibleItems = useMemo(
+        () => filteredItems.filter(isBatchPriceEligible),
+        [filteredItems]
+    )
+    const eligibleVisibleIds = useMemo(
+        () => eligibleVisibleItems.map(item => item.id),
+        [eligibleVisibleItems]
+    )
+    const selectedEligibleItems = useMemo(
+        () => eligibleVisibleItems.filter(item => selectedItemIds.includes(item.id)),
+        [eligibleVisibleItems, selectedItemIds]
+    )
     const allEligibleVisibleSelected =
         eligibleVisibleIds.length > 0 &&
         eligibleVisibleIds.every(id => selectedItemIds.includes(id))
 
     useEffect(() => {
         const visibleEligibleIds = new Set(eligibleVisibleIds)
-        setSelectedItemIds(prev => prev.filter(id => visibleEligibleIds.has(id)))
+        setSelectedItemIds(prev => {
+            const nextSelectedIds = prev.filter(id => visibleEligibleIds.has(id))
+            return nextSelectedIds.length === prev.length ? prev : nextSelectedIds
+        })
     }, [eligibleVisibleIds])
 
     const handleExportXlsx = useCallback(async () => {

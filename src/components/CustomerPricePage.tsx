@@ -9,6 +9,7 @@ import { Icons } from "./ui/Icons";
 import { CustomerBadge } from "./ui/CustomerBadge";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
+import { useDebounce } from "../hooks/useDebounce";
 
 type ItemRow = {
   id: string;
@@ -30,6 +31,7 @@ export default function CustomerPricePage() {
   const [pageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 350);
   const [originalPrices, setOriginalPrices] = useState<Record<string, number>>({});
   const [editedPrices, setEditedPrices] = useState<Record<string, string>>({});
   const [bulkValue, setBulkValue] = useState("");
@@ -92,8 +94,8 @@ export default function CustomerPricePage() {
         .eq("is_active", true)
         .order("name", { ascending: true });
 
-      if (search) {
-        query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+      if (debouncedSearch) {
+        query = query.or(`name.ilike.%${debouncedSearch}%,sku.ilike.%${debouncedSearch}%`);
       }
 
       const from = (page - 1) * pageSize;
@@ -139,7 +141,7 @@ export default function CustomerPricePage() {
     } finally {
       setLoading(false);
     }
-  }, [customerId, page, pageSize, search]);
+  }, [customerId, page, pageSize, debouncedSearch]);
 
   useEffect(() => {
     fetchCustomer();
