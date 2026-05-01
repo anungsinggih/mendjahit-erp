@@ -7,6 +7,7 @@ import { Select } from './ui/Select'
 import { Checkbox } from './ui/Checkbox'
 import { Icons } from './ui/Icons'
 import { QuickMasterDialog } from './QuickMasterDialog'
+import { getErrorMessage } from '../lib/errors'
 
 import { ITEM_TYPES } from "../lib/constants";
 import type { Item } from "../types/shared";
@@ -151,8 +152,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
 
             onSuccess()
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message)
-            else setError('Unknown error')
+            setError(getErrorMessage(err, 'Unknown error'))
         } finally {
             setLoading(false)
         }

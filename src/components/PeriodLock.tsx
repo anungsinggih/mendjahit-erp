@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
 import { ButtonSelect } from "./ui/ButtonSelect";
 import { Input } from "./ui/Input";
+import { Select } from "./ui/Select";
 import {
   Table,
   TableBody,
@@ -35,10 +36,18 @@ type ExportLog = {
   notes: string;
 };
 
-type AccountBalance = {
+type Account = {
   id: string;
   code: string;
   name: string;
+  account_type: string;
+};
+
+type AccountBalance = {
+  account_id: string;
+  code: string;
+  name: string;
+  account_type?: string;
   opening_balance: number;
   debit_movement: number;
   credit_movement: number;
@@ -50,33 +59,9 @@ type GLLine = {
   ref_type: string | null;
   ref_no: string | null;
   memo: string | null;
-  account_code: string | null;
-  account_name: string | null;
   debit: number | null;
   credit: number | null;
-};
-
-type JournalLineRow = {
-  debit: number | null;
-  credit: number | null;
-  account:
-  | { code: string | null; name: string | null }
-  | { code: string | null; name: string | null }[]
-  | null;
-  journal:
-  | {
-    journal_date: string | null;
-    ref_type: string | null;
-    ref_id: string | null;
-    memo: string | null;
-  }
-  | {
-    journal_date: string | null;
-    ref_type: string | null;
-    ref_id: string | null;
-    memo: string | null;
-  }[]
-  | null;
+  trx_id?: string | null;
 };
 
 type PeriodInfo = {
@@ -85,6 +70,8 @@ type PeriodInfo = {
   start_date: string;
   end_date: string;
 };
+
+type ExportTableRow = Record<string, string | number | null>;
 
 const toCsv = <T extends Record<string, string | number | null>>(rows: T[]) => {
   const headers = rows.length ? Object.keys(rows[0]) : [];
@@ -111,6 +98,72 @@ const downloadCsv = (filename: string, csv: string) => {
   URL.revokeObjectURL(url);
 };
 
+const formatReportNumber = (value: number) =>
+  value.toLocaleString("id-ID", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const escapeHtml = (value: string | number | null | undefined) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const renderPdfTable = (
+  columns: Array<{ key: string; label: string; numeric?: boolean }>,
+  rows: ExportTableRow[],
+  getRowClass?: (row: ExportTableRow, index: number) => string,
+) => {
+  const header = `<tr>${columns
+    .map(
+      (column) =>
+        `<th${column.numeric ? ` class="num"` : ""}>${escapeHtml(column.label)}</th>`,
+    )
+    .join("")}</tr>`;
+
+  const body = rows
+    .map((row, index) => {
+      const rowClass = getRowClass?.(row, index) ?? "";
+      const classAttr = rowClass ? ` class="${escapeHtml(rowClass)}"` : "";
+
+      return `<tr${classAttr}>${columns
+        .map((column) => {
+          const rawValue = row[column.key];
+          const cellValue =
+            column.numeric && typeof rawValue === "number"
+              ? formatReportNumber(rawValue)
+              : escapeHtml(rawValue);
+
+          return `<td${column.numeric ? ` class="num"` : ""}>${cellValue}</td>`;
+        })
+        .join("")}</tr>`;
+    })
+    .join("");
+
+  return `<table>${header}${body}</table>`;
+};
+
+const getAccountType = (row: AccountBalance) => {
+  if (row.account_type) return row.account_type;
+  if (row.code?.startsWith("1")) return "ASSET";
+  if (row.code?.startsWith("2")) return "LIABILITY";
+  if (row.code?.startsWith("3")) return "EQUITY";
+  if (row.code?.startsWith("4")) return "REVENUE";
+  if (row.code?.startsWith("5")) return "COGS";
+  return "EXPENSE";
+};
+
+const getPeriodAmount = (row: AccountBalance) =>
+  getAccountType(row) === "REVENUE"
+    ? row.credit_movement - row.debit_movement
+    : row.debit_movement - row.credit_movement;
+
+const getDisplayedClosingBalance = (row: AccountBalance, invert = false) =>
+  invert ? -row.closing_balance : row.closing_balance;
+
 const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string) => {
   const win = window.open("", "_blank");
   if (!win) return;
@@ -121,11 +174,14 @@ const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string)
     .btn { background: #0f172a; color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; }
     .btn:hover { background: #1e293b; }
     h1 { font-size: 18px; margin: 0 0 6px; }
+    h2 { font-size: 14px; margin: 18px 0 8px; }
     .meta { font-size: 12px; color: #475569; margin-bottom: 16px; display: flex; justify-content: space-between; }
+    .meta-line { margin: 0 0 12px; font-size: 12px; color: #0f172a; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
     th, td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
     th { text-align: left; background: #f8fafc; font-weight: 600; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .total-row td { font-weight: 700; background: #f8fafc; }
     .section { margin-top: 16px; }
     @media print { .no-print { display: none !important; } }
   `;
@@ -194,12 +250,31 @@ export default function PeriodLock() {
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
   const [logs, setLogs] = useState<ExportLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [exportType, setExportType] = useState("TB");
   const [exportFormat, setExportFormat] = useState<"PDF" | "CSV">("PDF");
+  const [glAccountId, setGlAccountId] = useState("");
   const [exporting, setExporting] = useState(false);
-  const existingExport = logs.find(
-    (log) => log.report_type === `${exportType}_${exportFormat}`
-  );
+  const selectedGlAccount =
+    accounts.find((account) => account.id === glAccountId) ?? null;
+  const getExportSignature = (
+    type: string,
+    format: "CSV" | "PDF",
+    account: Account | null = selectedGlAccount,
+  ) => {
+    if (type === "GL") {
+      return account ? `GL_${format}_${account.code}` : `GL_${format}`;
+    }
+
+    return `${type}_${format}`;
+  };
+  const currentExportSignature =
+    exportType === "GL" && !selectedGlAccount
+      ? null
+      : getExportSignature(exportType, exportFormat);
+  const existingExport = currentExportSignature
+    ? logs.find((log) => log.report_type === currentExportSignature)
+    : undefined;
   const existingExportStamp = existingExport?.exported_at
     ? new Date(existingExport.exported_at).toLocaleString()
     : null;
@@ -270,6 +345,16 @@ export default function PeriodLock() {
   }
 
   // -- 2. EXPORTS OPS --
+  const fetchAccounts = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("accounts")
+      .select("id,code,name,account_type")
+      .order("code");
+
+    if (error) setError(error.message);
+    else setAccounts((data || []) as Account[]);
+  }, []);
+
   const fetchLogs = useCallback(async (periodId: string) => {
     setSelectedPeriodId(periodId);
     setLogsLoading(true);
@@ -298,6 +383,17 @@ export default function PeriodLock() {
     }
     return data as PeriodInfo;
   }, [selectedPeriodId]);
+
+  const buildExportNotes = (
+    type: string,
+    account: Account | null = selectedGlAccount,
+  ) => {
+    if (type === "GL" && account) {
+      return `Manual Export via UI | Account: ${account.code} - ${account.name}`;
+    }
+
+    return "Manual Export via UI";
+  };
 
   const openCloseModal = async (p: Period) => {
     setClosingPeriod(p);
@@ -381,15 +477,31 @@ export default function PeriodLock() {
     const periodInfo = await fetchPeriodInfo();
     if (!periodInfo) return;
 
-    const baseName = `${type}_${periodInfo.name}_${periodInfo.start_date}_${periodInfo.end_date}`;
+    const exportSignature = getExportSignature(type, format);
+    const glFileSuffix =
+      type === "GL" && selectedGlAccount ? `_${selectedGlAccount.code}` : "";
+    const baseName = `${type}_${periodInfo.name}_${periodInfo.start_date}_${periodInfo.end_date}${glFileSuffix}`;
+
     try {
-      if (type === "TB" || type === "PL") {
+      if (type === "TB" || type === "PL" || type === "BS") {
         const { data, error } = await supabase.rpc("rpc_get_account_balances", {
           p_start_date: periodInfo.start_date,
           p_end_date: periodInfo.end_date,
         });
         if (error) throw error;
         const balances = (data || []) as AccountBalance[];
+        const assets = balances.filter((row) => getAccountType(row) === "ASSET");
+        const liabilities = balances.filter(
+          (row) => getAccountType(row) === "LIABILITY",
+        );
+        const equity = balances.filter((row) => getAccountType(row) === "EQUITY");
+        const revenue = balances.filter((row) => getAccountType(row) === "REVENUE");
+        const cogs = balances.filter((row) => getAccountType(row) === "COGS");
+        const expense = balances.filter((row) => getAccountType(row) === "EXPENSE");
+        const sumClosing = (rows: AccountBalance[]) =>
+          rows.reduce((total, row) => total + row.closing_balance, 0);
+        const sumPeriod = (rows: AccountBalance[]) =>
+          rows.reduce((total, row) => total + getPeriodAmount(row), 0);
 
         const tbRows = balances.map((row) => ({
           code: row.code,
@@ -400,118 +512,300 @@ export default function PeriodLock() {
           closing_balance: row.closing_balance,
         }));
 
-        const plRows = balances
-          .filter((row) =>
-            ["4", "5", "6", "7", "8", "9"].some((prefix) =>
-              row.code?.startsWith(prefix)
-            )
-          )
-          .map((row) => ({
+        const periodRevenue = sumPeriod(revenue);
+        const periodCogs = sumPeriod(cogs);
+        const periodExpense = sumPeriod(expense);
+        const grossProfit = periodRevenue - periodCogs;
+        const periodNetIncome = grossProfit - periodExpense;
+        const currentYearEarnings = -(sumClosing(revenue) + sumClosing(cogs) + sumClosing(expense));
+        const totalAsset = sumClosing(assets);
+        const totalLiabilities = -sumClosing(liabilities);
+        const totalEquity = -sumClosing(equity) + currentYearEarnings;
+        const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+        const balanceDifference = totalAsset - totalLiabilitiesAndEquity;
+
+        const plRows = [
+          ...revenue.map((row) => ({
+            section: "Revenue",
             code: row.code,
             name: row.name,
-            closing_balance: row.closing_balance,
-          }));
+            amount: getPeriodAmount(row),
+          })),
+          {
+            section: "Revenue",
+            code: "TOTAL",
+            name: "Total Revenue",
+            amount: periodRevenue,
+          },
+          ...cogs.map((row) => ({
+            section: "COGS",
+            code: row.code,
+            name: row.name,
+            amount: getPeriodAmount(row),
+          })),
+          {
+            section: "COGS",
+            code: "TOTAL",
+            name: "Total COGS",
+            amount: periodCogs,
+          },
+          {
+            section: "Summary",
+            code: "GROSS",
+            name: "Gross Profit",
+            amount: grossProfit,
+          },
+          ...expense.map((row) => ({
+            section: "Expense",
+            code: row.code,
+            name: row.name,
+            amount: getPeriodAmount(row),
+          })),
+          {
+            section: "Expense",
+            code: "TOTAL",
+            name: "Total Expenses",
+            amount: periodExpense,
+          },
+          {
+            section: "Summary",
+            code: "NET",
+            name: "Net Income",
+            amount: periodNetIncome,
+          },
+        ];
 
-        const rows = type === "TB" ? tbRows : plRows;
+        const bsRows = [
+          ...assets.map((row) => ({
+            section: "Assets",
+            code: row.code,
+            name: row.name,
+            amount: getDisplayedClosingBalance(row),
+          })),
+          {
+            section: "Assets",
+            code: "TOTAL",
+            name: "Total Assets",
+            amount: totalAsset,
+          },
+          ...liabilities.map((row) => ({
+            section: "Liabilities",
+            code: row.code,
+            name: row.name,
+            amount: getDisplayedClosingBalance(row, true),
+          })),
+          {
+            section: "Liabilities",
+            code: "TOTAL",
+            name: "Total Liabilities",
+            amount: totalLiabilities,
+          },
+          ...equity.map((row) => ({
+            section: "Equity",
+            code: row.code,
+            name: row.name,
+            amount: getDisplayedClosingBalance(row, true),
+          })),
+          {
+            section: "Equity",
+            code: "RET",
+            name: "Current Year Earnings",
+            amount: currentYearEarnings,
+          },
+          {
+            section: "Equity",
+            code: "TOTAL",
+            name: "Total Equity",
+            amount: totalEquity,
+          },
+          {
+            section: "Summary",
+            code: "TOTAL",
+            name: "Total Liabilities & Equity",
+            amount: totalLiabilitiesAndEquity,
+          },
+          {
+            section: "Summary",
+            code: "DIFF",
+            name: "Balance Difference",
+            amount: balanceDifference,
+          },
+        ];
 
-        if (format === "CSV") {
-          const csv = toCsv(rows);
-          downloadCsv(`${baseName}.csv`, csv);
-        } else {
-          if (type === "TB") {
-            const header =
-              "<tr><th>Code</th><th>Name</th><th class='num'>Opening</th><th class='num'>Debit</th><th class='num'>Credit</th><th class='num'>Closing</th></tr>";
-            const body = tbRows
-              .map(
-                (row) => `<tr>
-                  <td>${row.code}</td>
-                  <td>${row.name}</td>
-                  <td class="num">${row.opening_balance}</td>
-                  <td class="num">${row.debit_movement}</td>
-                  <td class="num">${row.credit_movement}</td>
-                  <td class="num">${row.closing_balance}</td>
-                </tr>`
-              )
-              .join("");
+        if (type === "TB") {
+          const columns = [
+            { key: "code", label: "Code" },
+            { key: "name", label: "Name" },
+            { key: "opening_balance", label: "Opening", numeric: true },
+            { key: "debit_movement", label: "Debit", numeric: true },
+            { key: "credit_movement", label: "Credit", numeric: true },
+            { key: "closing_balance", label: "Closing", numeric: true },
+          ];
+
+          if (format === "CSV") {
+            downloadCsv(`${baseName}.csv`, toCsv(tbRows));
+          } else {
             openPdfPrintWindow(
               "Trial Balance",
               periodInfo,
-              `<table>${header}${body}</table>`
+              renderPdfTable(columns, tbRows),
             );
+          }
+        } else if (type === "PL") {
+          const columns = [
+            { key: "section", label: "Section" },
+            { key: "code", label: "Code" },
+            { key: "name", label: "Name" },
+            { key: "amount", label: "Amount", numeric: true },
+          ];
+
+          if (format === "CSV") {
+            downloadCsv(`${baseName}.csv`, toCsv(plRows));
           } else {
-            const header =
-              "<tr><th>Code</th><th>Name</th><th class='num'>Amount</th></tr>";
-            const body = plRows
-              .map(
-                (row) => `<tr>
-                <td>${row.code}</td>
-                <td>${row.name}</td>
-                <td class="num">${row.closing_balance}</td>
-              </tr>`
-              )
-              .join("");
             openPdfPrintWindow(
               "Profit & Loss",
               periodInfo,
-              `<table>${header}${body}</table>`
+              renderPdfTable(
+                columns,
+                plRows,
+                (row) =>
+                  String(row.name).startsWith("Total ") ||
+                  row.name === "Gross Profit" ||
+                  row.name === "Net Income"
+                    ? "total-row"
+                    : "",
+              ),
+            );
+          }
+        } else {
+          const columns = [
+            { key: "section", label: "Section" },
+            { key: "code", label: "Code" },
+            { key: "name", label: "Name" },
+            { key: "amount", label: "Amount", numeric: true },
+          ];
+
+          if (format === "CSV") {
+            downloadCsv(`${baseName}.csv`, toCsv(bsRows));
+          } else {
+            openPdfPrintWindow(
+              "Balance Sheet",
+              periodInfo,
+              renderPdfTable(
+                columns,
+                bsRows,
+                (row) =>
+                  row.name === "Current Year Earnings" ||
+                  String(row.name).startsWith("Total ") ||
+                  row.name === "Balance Difference"
+                    ? "total-row"
+                    : "",
+              ),
             );
           }
         }
-      } else if (type === "GL") {
-        const { data, error } = await supabase
-          .from("journal_lines")
-          .select(
-            "debit,credit,account:accounts(code,name),journal:journals(journal_date,ref_type,ref_id,memo)"
-          )
-          .gte("journal.journal_date", periodInfo.start_date)
-          .lte("journal.journal_date", periodInfo.end_date)
-          .order("journal_date", { foreignTable: "journals", ascending: true });
+      } else if (type === "CF") {
+        const { data, error } = await supabase.rpc("rpc_get_cashflow", {
+          p_start_date: periodInfo.start_date,
+          p_end_date: periodInfo.end_date,
+        });
         if (error) throw error;
 
-        const rows = (data || []).map((row: JournalLineRow) => {
-          const journal = Array.isArray(row.journal)
-            ? row.journal[0]
-            : row.journal;
-          const account = Array.isArray(row.account)
-            ? row.account[0]
-            : row.account;
-          return {
-            journal_date: journal?.journal_date || "",
-            ref_type: journal?.ref_type || "",
-            ref_no: journal?.ref_id || "",
-            memo: journal?.memo || "",
-            account_code: account?.code || "",
-            account_name: account?.name || "",
-            debit: row.debit ?? 0,
-            credit: row.credit ?? 0,
-          };
-        }) as GLLine[];
+        const rows = ((data || []) as CashflowLine[]).map((row) => ({
+          category: row.category,
+          description: row.description,
+          amount: Number(row.amount ?? 0),
+        }));
+
+        const columns = [
+          { key: "category", label: "Category" },
+          { key: "description", label: "Description" },
+          { key: "amount", label: "Amount", numeric: true },
+        ];
 
         if (format === "CSV") {
-          const csv = toCsv(rows);
-          downloadCsv(`${baseName}.csv`, csv);
+          downloadCsv(`${baseName}.csv`, toCsv(rows));
         } else {
-          const header =
-            "<tr><th>Date</th><th>Ref Type</th><th>Ref ID</th><th>Memo</th><th>Account</th><th class='num'>Debit</th><th class='num'>Credit</th></tr>";
-          const body = rows
-            .map(
-              (row) => `<tr>
-                <td>${row.journal_date || ""}</td>
-                <td>${row.ref_type || ""}</td>
-                <td>${row.ref_no || ""}</td>
-                <td>${row.memo || ""}</td>
-                <td>${row.account_code || ""} ${row.account_name || ""}</td>
-                <td class="num">${row.debit ?? 0}</td>
-                <td class="num">${row.credit ?? 0}</td>
-              </tr>`
-            )
-            .join("");
           openPdfPrintWindow(
-            "General Ledger",
+            "Cash Flow",
             periodInfo,
-            `<table>${header}${body}</table>`
+            renderPdfTable(
+              columns,
+              rows,
+              (row) => (row.category === "Closing" ? "total-row" : ""),
+            ),
           );
         }
+      } else if (type === "GL") {
+        if (!selectedGlAccount) {
+          throw new Error("Pilih akun untuk export General Ledger.");
+        }
+
+        const { data, error } = await supabase.rpc("rpc_get_gl", {
+          p_account_id: selectedGlAccount.id,
+          p_start_date: periodInfo.start_date,
+          p_end_date: periodInfo.end_date,
+        });
+        if (error) throw error;
+
+        const sortedRows = ((data || []) as GLLine[])
+          .map((row) => ({
+            journal_date: row.journal_date || "",
+            ref_type: row.ref_type || "",
+            ref_no: row.ref_no || "",
+            memo: row.memo || "",
+            debit: Number(row.debit ?? 0),
+            credit: Number(row.credit ?? 0),
+          }))
+          .sort((left, right) => {
+            const dateCompare = left.journal_date.localeCompare(right.journal_date);
+            if (dateCompare !== 0) return dateCompare;
+
+            const leftRank = left.ref_type === "OPENING_BALANCE" ? 0 : 1;
+            const rightRank = right.ref_type === "OPENING_BALANCE" ? 0 : 1;
+            return leftRank - rightRank;
+          });
+
+        let runningBalance = 0;
+        const rows = sortedRows.map((row) => {
+          runningBalance += row.debit - row.credit;
+
+          return {
+            journal_date: row.journal_date,
+            ref_type: row.ref_type,
+            ref_no: row.ref_no,
+            memo: row.memo,
+            debit: row.debit,
+            credit: row.credit,
+            running_balance: runningBalance,
+          };
+        });
+
+        const columns = [
+          { key: "journal_date", label: "Date" },
+          { key: "ref_type", label: "Reference Type" },
+          { key: "ref_no", label: "Reference" },
+          { key: "memo", label: "Description" },
+          { key: "debit", label: "Debit", numeric: true },
+          { key: "credit", label: "Credit", numeric: true },
+          { key: "running_balance", label: "Running Balance", numeric: true },
+        ];
+
+        if (format === "CSV") {
+          downloadCsv(`${baseName}.csv`, toCsv(rows));
+        } else {
+          openPdfPrintWindow(
+            `General Ledger - ${selectedGlAccount.code}`,
+            periodInfo,
+            `<p class="meta-line">Account: ${escapeHtml(selectedGlAccount.code)} - ${escapeHtml(selectedGlAccount.name)}</p>${renderPdfTable(
+              columns,
+              rows,
+              (row) => (row.ref_type === "OPENING_BALANCE" ? "total-row" : ""),
+            )}`,
+          );
+        }
+      } else {
+        throw new Error(`Unsupported report type: ${type}`);
       }
 
       if (!skipLog) {
@@ -519,8 +813,8 @@ export default function PeriodLock() {
           "rpc_export_period_reports",
           {
             p_period_id: selectedPeriodId,
-            p_report_type: `${type}_${format}`,
-            p_notes: "Manual Export via UI",
+            p_report_type: exportSignature,
+            p_notes: buildExportNotes(type),
           }
         );
         if (logError) setError(logError.message);
@@ -537,8 +831,12 @@ export default function PeriodLock() {
     try {
       await handleExport(exportType, exportFormat, !!existingExport);
       if (existingExport) {
+        const exportLabel =
+          exportType === "GL" && selectedGlAccount
+            ? `${exportType} ${selectedGlAccount.code}`
+            : exportType;
         setSuccess(
-          `Export ${exportType} (${exportFormat}) dibuka dari log ${existingExportStamp ? `(${existingExportStamp})` : ""
+          `Export ${exportLabel} (${exportFormat}) dibuka dari log ${existingExportStamp ? `(${existingExportStamp})` : ""
           } tanpa membuat log baru.`
         );
       }
@@ -551,6 +849,10 @@ export default function PeriodLock() {
   useEffect(() => {
     fetchPeriods();
   }, [fetchPeriods]);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
 
   return (
     <div className="w-full space-y-8">
@@ -666,14 +968,16 @@ export default function PeriodLock() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <ButtonSelect
                 label="Report"
                 value={exportType}
                 onChange={setExportType}
                 options={[
                   { label: "Trial Balance", value: "TB" },
+                  { label: "Balance Sheet", value: "BS" },
                   { label: "Profit & Loss", value: "PL" },
+                  { label: "Cash Flow", value: "CF" },
                   { label: "General Ledger", value: "GL" },
                 ]}
               />
@@ -686,17 +990,41 @@ export default function PeriodLock() {
                   { label: "CSV (Download)", value: "CSV" },
                 ]}
               />
+              {exportType === "GL" && (
+                <Select
+                  label="Ledger Account"
+                  value={glAccountId}
+                  onValueChange={setGlAccountId}
+                  placeholder="Select an account"
+                  searchPlaceholder="Search account..."
+                  className="!mb-0"
+                  options={[
+                    { label: "-- Select an Account --", value: "" },
+                    ...accounts.map((account) => ({
+                      label: `${account.code} - ${account.name}`,
+                      value: account.id,
+                      searchText: `${account.code} ${account.name} ${account.account_type}`,
+                    })),
+                  ]}
+                />
+              )}
               <div className="flex flex-col justify-end gap-2">
                 {existingExport && (
                   <p className="text-xs text-amber-600">
                     Sudah ada di log untuk report ini{existingExportStamp ? ` (${existingExportStamp})` : ""}. Klik Export untuk membuka preview tanpa membuat log baru.
                   </p>
                 )}
+                {exportType === "GL" && !selectedGlAccount && (
+                  <p className="text-xs text-slate-500">
+                    Pilih akun terlebih dahulu untuk export General Ledger.
+                  </p>
+                )}
                 <Button
                   onClick={handleExportClick}
                   disabled={
                     exporting ||
-                    logsLoading
+                    logsLoading ||
+                    (exportType === "GL" && !selectedGlAccount)
                   }
                   className="bg-indigo-600 hover:bg-indigo-700 text-white h-10"
                 >

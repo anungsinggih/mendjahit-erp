@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs'
@@ -12,7 +12,7 @@ import { Badge } from './ui/Badge'
 import { getErrorMessage } from '../lib/errors'
 
 type AccountBalance = {
-    id: string
+    account_id: string
     code: string
     name: string
     account_type: string
@@ -41,6 +41,7 @@ type Account = { id: string, name: string, code: string, account_type: string }
 
 export default function Reporting() {
     const navigate = useNavigate()
+    const requestIdRef = useRef(0)
     const [startDate, setStartDate] = useState(() => {
         const d = new Date()
         return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA')
@@ -91,15 +92,35 @@ export default function Reporting() {
     }, [])
 
     useEffect(() => {
-        // Debounce or just fetch? Let's just fetch for now, maybe add small timeout if typing
-        // GL requires account selection, so only fetch if account is selected
-        if (activeTab === 'GL' && !glAccount) return
+        const requestId = ++requestIdRef.current
+        let cancelled = false
+        const isStale = () => cancelled || requestId !== requestIdRef.current
+
+        if (startDate > endDate) {
+            if (!isStale()) {
+                setError('Start date must be on or before end date.')
+                setLoading(false)
+                if (activeTab === 'GL') setGlData([])
+                else if (activeTab === 'CF') setCashflowData([])
+                else setData([])
+            }
+            return
+        }
+
+        if (activeTab === 'GL' && !glAccount) {
+            if (!isStale()) {
+                setError(null)
+                setLoading(false)
+                setGlData([])
+            }
+            return
+        }
 
         const fetchReportData = async () => {
-            setLoading(true)
-            setError(null)
-            // Keep previous data while loading for better UX? Or clear? 
-            // Clearing might cause layout shift. Let's keep and show loading overlay or spinner.
+            if (!isStale()) {
+                setLoading(true)
+                setError(null)
+            }
 
             try {
                 if (activeTab === 'GL') {
@@ -109,6 +130,7 @@ export default function Reporting() {
                         p_end_date: endDate
                     })
                     if (error) throw error
+                    if (isStale()) return
                     setGlData(data || [])
                 } else if (activeTab === 'CF') {
                     const { data, error } = await supabase.rpc('rpc_get_cashflow', {
@@ -116,6 +138,7 @@ export default function Reporting() {
                         p_end_date: endDate
                     })
                     if (error) throw error
+                    if (isStale()) return
                     setCashflowData(data || [])
                 } else {
                     // TB, BS, PL rely on Balances
@@ -124,16 +147,27 @@ export default function Reporting() {
                         p_end_date: endDate
                     })
                     if (error) throw error
+                    if (isStale()) return
                     setData(data || [])
                 }
             } catch (err: unknown) {
+                if (isStale()) return
+                if (activeTab === 'GL') setGlData([])
+                else if (activeTab === 'CF') setCashflowData([])
+                else setData([])
                 setError(getErrorMessage(err))
             } finally {
-                setLoading(false)
+                if (!isStale()) {
+                    setLoading(false)
+                }
             }
         }
 
         fetchReportData()
+
+        return () => {
+            cancelled = true
+        }
     }, [activeTab, startDate, endDate, glAccount])
 
     async function fetchAccounts() {
@@ -154,6 +188,16 @@ export default function Reporting() {
         return 'EXPENSE'
     }
 
+    const getDisplayedClosingBalance = (row: AccountBalance, invert = false) =>
+        invert ? -row.closing_balance : row.closing_balance
+
+    const getPeriodAmount = (row: AccountBalance) => {
+        const accountType = getAccountType(row)
+        if (accountType === 'REVENUE') return row.credit_movement - row.debit_movement
+        if (accountType === 'COGS' || accountType === 'EXPENSE') return row.debit_movement - row.credit_movement
+        return row.debit_movement - row.credit_movement
+    }
+
     // Balance Sheet Logic
     const assets = data.filter(d => getAccountType(d) === 'ASSET')
     const liabs = data.filter(d => getAccountType(d) === 'LIABILITY')
@@ -165,23 +209,33 @@ export default function Reporting() {
     const expense = data.filter(d => getAccountType(d) === 'EXPENSE')
 
     const sum = (list: AccountBalance[]) => list.reduce((acc, curr) => acc + curr.closing_balance, 0)
-    const retainedEarnings = sum(revenue) + sum(cogs) + sum(expense)
+    const sumPeriod = (list: AccountBalance[]) => list.reduce((acc, curr) => acc + getPeriodAmount(curr), 0)
+    const currentYearEarnings = -(sum(revenue) + sum(cogs) + sum(expense))
     const totalAsset = sum(assets)
     const totalLiab = -sum(liabs)
-    const totalEquity = -sum(equity) + (-retainedEarnings)
+    const totalEquity = -sum(equity) + currentYearEarnings
+    const periodRevenue = sumPeriod(revenue)
+    const periodCogs = sumPeriod(cogs)
+    const periodExpense = sumPeriod(expense)
+    const grossProfit = periodRevenue - periodCogs
+    const periodNetIncome = grossProfit - periodExpense
 
     // Helper to render Account Rows
-    const AccountRow = ({ item, invert = false }: { item: AccountBalance, invert?: boolean }) => (
+    const AccountRow = ({ item, invert = false }: { item: AccountBalance, invert?: boolean }) => {
+        const displayedBalance = getDisplayedClosingBalance(item, invert)
+
+        return (
         <div className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-sm group">
             <div className="flex items-center gap-3">
                 <span className="font-mono text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{item.code}</span>
                 <span className="text-sm text-slate-700 font-medium group-hover:text-slate-900 transition-colors">{item.name}</span>
             </div>
-            <span className={`font-mono text-sm ${item.closing_balance < 0 ? 'text-red-600' : 'text-slate-700'}`}>
-                {fmt(invert ? -item.closing_balance : item.closing_balance)}
+            <span className={`font-mono text-sm ${displayedBalance < 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                {fmt(displayedBalance)}
             </span>
         </div>
     )
+    }
 
     const PrintFrame = ({ children }: { children: ReactNode }) => (
         <div className="print:w-[210mm] print:mx-auto print:bg-white print:text-black print:font-sans print:leading-tight print:px-8 print:py-6 print:relative print:!mt-0">
@@ -326,7 +380,7 @@ export default function Reporting() {
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 {data.map(d => (
-                                                    <tr key={d.id} className="hover:bg-indigo-50/30 transition-colors print:hover:bg-transparent">
+                                                    <tr key={d.account_id} className="hover:bg-indigo-50/30 transition-colors print:hover:bg-transparent">
                                                         <td className="px-6 py-3 font-mono text-xs text-slate-500 print:px-2 print:py-1">{d.code}</td>
                                                         <td className="px-6 py-3 font-medium text-slate-900 print:px-2 print:py-1">{d.name}</td>
                                                         <td className="px-6 py-3 text-right text-slate-500 font-mono print:px-2 print:py-1">{fmt(d.opening_balance)}</td>
@@ -352,7 +406,7 @@ export default function Reporting() {
                                     <Section title="Assets" description="What the company owns." className="border-t-4 border-t-emerald-500 h-full print:border-none print:shadow-none print:p-0">
                                         <div className="flex flex-col h-[600px] print:h-auto">
                                             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                                {assets.map(d => <AccountRow key={d.id} item={d} />)}
+                                                {assets.map(d => <AccountRow key={d.account_id} item={d} />)}
                                                 {assets.length === 0 && <p className="text-center text-slate-400 py-4 italic">No asset accounts found.</p>}
                                             </div>
                                             <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-auto">
@@ -373,7 +427,7 @@ export default function Reporting() {
                                                         <div className="w-1.5 h-1.5 rounded-full bg-rose-400 print:hidden"></div> Liabilities
                                                     </h4>
                                                     <div className="mb-2">
-                                                        {liabs.map(d => <AccountRow key={d.id} item={d} invert />)}
+                                                        {liabs.map(d => <AccountRow key={d.account_id} item={d} invert />)}
                                                         {liabs.length === 0 && <p className="text-sm text-slate-400 italic px-2">No liability accounts.</p>}
                                                     </div>
                                                 </div>
@@ -384,14 +438,14 @@ export default function Reporting() {
                                                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 print:hidden"></div> Equity
                                                     </h4>
                                                     <div>
-                                                        {equity.map(d => <AccountRow key={d.id} item={d} invert />)}
+                                                        {equity.map(d => <AccountRow key={d.account_id} item={d} invert />)}
                                                         <div className="flex justify-between items-center py-2 border-b border-slate-50 px-2 rounded-sm bg-indigo-50/30 print:bg-transparent">
                                                             <div className="flex items-center gap-3">
                                                                 <span className="font-mono text-xs text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded print:bg-transparent print:text-slate-600">RET</span>
                                                                 <span className="text-sm text-indigo-900 font-medium print:text-slate-800">Current Year Earnings</span>
                                                             </div>
-                                                            <span className={`font-mono text-sm font-bold ${retainedEarnings < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
-                                                                {fmt(-retainedEarnings)}
+                                                            <span className={`font-mono text-sm font-bold ${currentYearEarnings < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
+                                                                {fmt(currentYearEarnings)}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -441,14 +495,14 @@ export default function Reporting() {
                                         </h4>
                                         <div className="space-y-1">
                                             {revenue.map(d => (
-                                                <div key={d.id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
+                                                <div key={d.account_id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
                                                     <span className="text-slate-700">{d.name}</span>
-                                                    <span className="font-mono font-medium text-slate-900">{fmt(-d.closing_balance)}</span>
+                                                    <span className="font-mono font-medium text-slate-900">{fmt(getPeriodAmount(d))}</span>
                                                 </div>
                                             ))}
                                             <div className="flex justify-between py-3 mt-2 bg-blue-50/50 px-3 rounded font-bold text-blue-900 print:bg-transparent print:text-slate-900 print:py-1 print:border-t-2 print:border-slate-300 print:mt-1">
                                                 <span>Total Revenue</span>
-                                                <span className="font-mono">{fmt(-sum(revenue))}</span>
+                                                <span className="font-mono">{fmt(periodRevenue)}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -460,14 +514,14 @@ export default function Reporting() {
                                         </h4>
                                         <div className="space-y-1">
                                             {cogs.map(d => (
-                                                <div key={d.id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
+                                                <div key={d.account_id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
                                                     <span className="text-slate-700">{d.name}</span>
-                                                    <span className="font-mono font-medium text-slate-900">{fmt(d.closing_balance)}</span>
+                                                    <span className="font-mono font-medium text-slate-900">{fmt(getPeriodAmount(d))}</span>
                                                 </div>
                                             ))}
                                             <div className="flex justify-between py-3 mt-2 bg-amber-50/50 px-3 rounded font-bold text-amber-900 print:bg-transparent print:text-slate-900 print:py-1 print:border-t-2 print:border-slate-300 print:mt-1">
                                                 <span>Total COGS</span>
-                                                <span className="font-mono">{fmt(sum(cogs))}</span>
+                                                <span className="font-mono">{fmt(periodCogs)}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -475,7 +529,7 @@ export default function Reporting() {
                                     <div>
                                         <div className="flex justify-between items-center p-4 bg-slate-100 rounded-lg border border-slate-200 shadow-sm print:bg-transparent print:border-none print:p-0 print:py-2">
                                             <span className="font-bold text-slate-700 uppercase tracking-wide">Gross Profit</span>
-                                            <span className="font-bold text-2xl font-mono text-slate-900 print:text-xl">{fmt((-sum(revenue)) - sum(cogs))}</span>
+                                            <span className="font-bold text-2xl font-mono text-slate-900 print:text-xl">{fmt(grossProfit)}</span>
                                         </div>
                                     </div>
 
@@ -486,28 +540,28 @@ export default function Reporting() {
                                         </h4>
                                         <div className="space-y-1">
                                             {expense.map(d => (
-                                                <div key={d.id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
+                                                <div key={d.account_id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
                                                     <span className="text-slate-700">{d.name}</span>
-                                                    <span className="font-mono font-medium text-slate-900">{fmt(d.closing_balance)}</span>
+                                                    <span className="font-mono font-medium text-slate-900">{fmt(getPeriodAmount(d))}</span>
                                                 </div>
                                             ))}
                                             <div className="flex justify-between py-3 mt-2 bg-rose-50/50 px-3 rounded font-bold text-rose-900 print:bg-transparent print:text-slate-900 print:py-1 print:border-t-2 print:border-slate-300 print:mt-1">
                                                 <span>Total Expenses</span>
-                                                <span className="font-mono">{fmt(sum(expense))}</span>
+                                                <span className="font-mono">{fmt(periodExpense)}</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className={`flex justify-between items-center p-6 rounded-xl border-2 shadow-sm transform transition-all hover:scale-[1.01] ${retainedEarnings < 0
+                                    <div className={`flex justify-between items-center p-6 rounded-xl border-2 shadow-sm transform transition-all hover:scale-[1.01] ${periodNetIncome >= 0
                                         ? 'bg-emerald-50 border-emerald-100'
                                         : 'bg-rose-50 border-rose-100'
                                         } print:bg-transparent print:border-slate-900 print:shadow-none print:p-4 print:mt-4`}>
                                         <div className="flex flex-col">
-                                            <span className={`text-sm font-bold uppercase tracking-wider ${retainedEarnings < 0 ? 'text-emerald-600' : 'text-rose-600'} print:text-slate-900`}>Net Income</span>
+                                            <span className={`text-sm font-bold uppercase tracking-wider ${periodNetIncome >= 0 ? 'text-emerald-600' : 'text-rose-600'} print:text-slate-900`}>Net Income</span>
                                             <span className="text-xs text-slate-500">Total comprehensive income for the period</span>
                                         </div>
-                                        <span className={`text-3xl font-black font-mono tracking-tight ${retainedEarnings < 0 ? 'text-emerald-700' : 'text-rose-700'} print:text-slate-900`}>
-                                            {fmt(-retainedEarnings)}
+                                        <span className={`text-3xl font-black font-mono tracking-tight ${periodNetIncome >= 0 ? 'text-emerald-700' : 'text-rose-700'} print:text-slate-900`}>
+                                            {fmt(periodNetIncome)}
                                         </span>
                                     </div>
                                     </div>
