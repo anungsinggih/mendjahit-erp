@@ -64,6 +64,12 @@ type GLLine = {
   trx_id?: string | null;
 };
 
+type CashflowLine = {
+  category: string;
+  description: string;
+  amount: number | null;
+};
+
 type PeriodInfo = {
   id: string;
   name: string;
