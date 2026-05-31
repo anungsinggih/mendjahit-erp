@@ -54,3 +54,7 @@ scripts/
 *.cjs
 docs/
 .agent/
+
+# Environment specific files
+.env.production
+.env.tunnel
