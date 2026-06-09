@@ -48,7 +48,7 @@ export default function CompanySettings() {
     const [activeTab, setActiveTab] = useState<'user' | 'company' | 'banks' | 'system'>('user')
 
     // System Availability (Local & Tunnel only)
-    const isSystemAvailable = import.meta.env.DEV || import.meta.env.MODE === 'tunnel' || import.meta.env.MODE === 'development'
+    const isSystemAvailable = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 
     // User Profile State
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null)

@@ -178,7 +178,7 @@ export default function ManualJournal() {
             <TableBody>
               {lines.map((line, index) => (
                 <TableRow key={index}>
-                  <TableCell className="min-w-[240px]">
+                  <TableCell className="min-w-[180px] sm:min-w-[240px]">
                     <Select
                       value={line.account_id}
                       onChange={(e) => updateLine(index, { account_id: e.target.value })}
@@ -223,7 +223,7 @@ export default function ManualJournal() {
                       containerClassName="!mb-0"
                     />
                   </TableCell>
-                  <TableCell className="min-w-[200px]">
+                  <TableCell className="min-w-[160px] sm:min-w-[200px]">
                     <Input
                       placeholder="Optional"
                       value={line.memo}

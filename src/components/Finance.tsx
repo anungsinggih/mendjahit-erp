@@ -303,7 +303,7 @@ export default function Finance() {
               <h4 className="text-sm font-semibold text-slate-800">AR Aging Overview</h4>
               <div className="text-xs text-slate-400">Overdue days</div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div className="flex-1 p-3 rounded-lg bg-slate-50 border border-slate-100 text-center">
                 <div className="text-xs text-slate-500 mb-1">0-30 Days</div>
                 <div className="text-sm font-bold text-indigo-600">{(arAging?.bucket_0_30 || 0).toLocaleString("id-ID")}</div>
@@ -325,7 +325,7 @@ export default function Finance() {
               <h4 className="text-sm font-semibold text-slate-800">AP Aging Overview</h4>
               <div className="text-xs text-slate-400">Overdue days</div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div className="flex-1 p-3 rounded-lg bg-slate-50 border border-slate-100 text-center">
                 <div className="text-xs text-slate-500 mb-1">0-30 Days</div>
                 <div className="text-sm font-bold text-indigo-600">{(apAging?.bucket_0_30 || 0).toLocaleString("id-ID")}</div>

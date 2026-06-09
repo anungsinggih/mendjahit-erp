@@ -616,7 +616,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                                     <Button
                                         onClick={handleSaveDraft}
                                         disabled={loading || lines.length === 0}
-                                        className="w-full sm:w-auto min-w-[150px] bg-blue-600 hover:bg-blue-700 shadow-sm"
+                                        className="w-full sm:w-auto min-w-[120px] sm:min-w-[150px] bg-blue-600 hover:bg-blue-700 shadow-sm"
                                         isLoading={loading}
                                     >
                                         Save Return Draft

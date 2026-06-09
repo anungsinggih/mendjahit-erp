@@ -163,15 +163,15 @@ export default function PurchaseHistory() {
   });
 
   // Client-side search + pagination — instant, no DB round-trip
-  const allPurchases = allPurchaseData ?? []
   const filteredPurchases = useMemo(() => {
-    if (!search.trim()) return allPurchases
+    const list = allPurchaseData ?? []
+    if (!search.trim()) return list
     const term = search.toLowerCase()
-    return allPurchases.filter(p =>
+    return list.filter(p =>
       p.purchase_no?.toLowerCase().includes(term) ||
       p.vendor_name?.toLowerCase().includes(term)
     )
-  }, [allPurchases, search])
+  }, [allPurchaseData, search])
 
   const totalCount = filteredPurchases.length
   const purchases = useMemo(() => {

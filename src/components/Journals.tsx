@@ -112,8 +112,8 @@ const JournalEntryItem = memo(function JournalEntryItem({
             {/* Expanded Details */}
             {isExpanded && (
                 <div className="border-t border-slate-100 bg-slate-50/50 rounded-b-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                    <ResponsiveTable minWidth="640px">
+<table className="w-full text-sm text-left">
                             <thead className="text-xs text-slate-500 uppercase bg-slate-100/80 border-b border-slate-200">
                                 <tr>
                                     <th className="px-4 py-2 font-medium w-[50%]">Account</th>
@@ -144,7 +144,7 @@ const JournalEntryItem = memo(function JournalEntryItem({
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+</ResponsiveTable>
                 </div>
             )}
         </div>

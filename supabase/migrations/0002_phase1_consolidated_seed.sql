@@ -49,13 +49,13 @@ set name = excluded.name,
 -- 4) COMPANY PROFILE (Default Mock)
 insert into public.company_profile (name, address, phone, email, bank_name, bank_account, bank_holder)
 select 
-    'PT. KONVEKSI MAJU JAYA',
+    'Mendjahit',
     'Jl. Industri No. 123, Bandung, Jawa Barat 40287',
     '(022) 555-0123',
-    'finance@konveksimaju.com',
+    'admin@mendjahit.com ',
     'BCA',
     '883-098-7766',
-    'PT. KONVEKSI MAJU JAYA'
+    'Mendjahit'
 where not exists (select 1 from public.company_profile);
 
 -- Note: Sizes and Colors sorting is now handled by application constants (src/lib/constants.ts)

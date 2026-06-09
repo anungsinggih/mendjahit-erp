@@ -110,7 +110,7 @@ export default function Login() {
                 </Card>
 
                 <div className="text-center mt-8 text-xs text-gray-400">
-                    &copy; {new Date().getFullYear()} Mendjahit ERP. All rights reserved.
+                    &copy; {new Date().getFullYear()} Mendjahit. All rights reserved.
                 </div>
             </div>
         </div>

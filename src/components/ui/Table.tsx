@@ -2,7 +2,7 @@ import React from 'react'
 
 export function Table({ children, className = '' }: { children: React.ReactNode, className?: string }) {
     return (
-        <div className="w-full overflow-x-auto rounded-lg border border-[var(--border)]">
+        <div className="w-full overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0 sm:rounded-lg sm:border border-[var(--border)]">
             <table className={`min-w-full w-full text-sm text-left whitespace-nowrap ${className}`}>
                 {children}
             </table>

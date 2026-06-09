@@ -1,4 +1,4 @@
-# 🚀 Saran Optimasi Performa - Mendjahit ERP App
+# 🚀 Saran Optimasi Performa - Mendjahit App
 
 ## 📊 Analisis Aplikasi Saat Ini
 

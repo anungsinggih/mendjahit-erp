@@ -19,7 +19,7 @@ export function Card({ className, ...props }: CardProps) {
 }
 
 export function CardHeader({ className, ...props }: CardProps) {
-    return <div className={classNames("p-6 pb-4 border-b border-[var(--border-light)]", className || "")} {...props} />
+    return <div className={classNames("p-3 pb-2 sm:p-6 sm:pb-4 border-b border-[var(--border-light)]", className || "")} {...props} />
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
@@ -31,7 +31,7 @@ export function CardDescription({ className, ...props }: React.HTMLAttributes<HT
 }
 
 export function CardContent({ className, ...props }: CardProps) {
-    return <div className={classNames("p-6 pt-4", className || "")} {...props} />
+    return <div className={classNames("p-3 pt-2 sm:p-6 sm:pt-4", className || "")} {...props} />
 }
 
 export function CardFooter({ className, ...props }: CardProps) {

@@ -167,15 +167,15 @@ export default function SalesHistory() {
     dateTo
   });
 
-  const allSales = allSalesData ?? []
   const filteredSales = useMemo(() => {
-    if (!debouncedSearch.trim()) return allSales
+    const list = allSalesData ?? []
+    if (!debouncedSearch.trim()) return list
     const term = debouncedSearch.toLowerCase()
-    return allSales.filter(s =>
+    return list.filter(s =>
       s.sales_no?.toLowerCase().includes(term) ||
       s.customer_name?.toLowerCase().includes(term)
     )
-  }, [allSales, debouncedSearch])
+  }, [allSalesData, debouncedSearch])
 
   const totalCount = filteredSales.length
   const sales = useMemo(() => {

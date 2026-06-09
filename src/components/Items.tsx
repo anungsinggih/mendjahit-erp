@@ -507,7 +507,7 @@ export default function Items() {
                                         />
                                     </TableHead>
                                     <TableHead className="w-[100px] text-xs uppercase tracking-wider text-slate-500">SKU</TableHead>
-                                    <TableHead className="min-w-[200px] text-xs uppercase tracking-wider text-slate-500">Name / Variant</TableHead>
+                                    <TableHead className="min-w-[140px] sm:min-w-[200px] text-xs uppercase tracking-wider text-slate-500">Name / Variant</TableHead>
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Size</TableHead>
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Color</TableHead>
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Type</TableHead>

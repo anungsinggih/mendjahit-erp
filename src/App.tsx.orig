@@ -111,8 +111,6 @@ function SidebarLink({
 
 // ... imports
 
-const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
 function PageWrapper({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   return (
@@ -278,7 +276,7 @@ function App() {
                   <img
                     src="/logo.png"
                     alt="Mendjahit"
-                    className="h-8 w-auto rounded"
+                    className="h-10 w-auto object-contain"
                   />
                   <span className="hidden sm:inline">Mendjahit</span>
                   <span className="sm:hidden">Mendjahit</span>
@@ -426,7 +424,7 @@ function App() {
               </div>
             )}
           </nav>
-          <main className="flex-1 min-h-screen pt-20 md:pt-0 p-2 sm:p-4 md:p-6 lg:p-8 w-full min-w-0">
+          <main className="flex-1 overflow-y-auto h-screen pt-20 md:pt-0 p-2 sm:p-4 md:p-6 lg:p-8">
             {periodStatus === "CLOSED" && (
               <div className="mb-3 md:mb-4">
                 <div className="flex items-center justify-between bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2">
@@ -553,7 +551,7 @@ function App() {
                     />
                     <Route path="/items" element={<Items />} />
                     {/* DEV ONLY Route */}
-                    {isLocalhost && (
+                    {import.meta.env.DEV && (
                       <Route path="/dev-reset" element={<DevResetData />} />
                     )}
                     <Route path="/" element={<Dashboard isOwner={isOwner} />} />

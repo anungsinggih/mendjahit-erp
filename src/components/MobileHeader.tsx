@@ -11,7 +11,7 @@ export function MobileHeader({ mobileMenuOpen, onToggleMenu, periodStatus }: Mob
     const pageTitle = usePageTitle()
 
     return (
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 border-b border-slate-800 shadow-lg print:hidden">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 border-b border-slate-800 shadow-lg print:hidden">
             <div className="flex items-center justify-between px-4 py-3">
                 <button
                     onClick={onToggleMenu}
@@ -21,7 +21,7 @@ export function MobileHeader({ mobileMenuOpen, onToggleMenu, periodStatus }: Mob
                     {mobileMenuOpen ? <Icons.Close className="w-6 h-6 text-white" /> : <Icons.Menu className="w-6 h-6 text-white" />}
                 </button>
                 <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="Mendjahit ERP" className="h-8 w-auto rounded" />
+                    <img src="/logo.png" alt="Mendjahit" className="h-10 w-auto object-contain" />
                     <span className="text-white font-semibold text-sm">{pageTitle}</span>
                     {periodStatus === 'CLOSED' && (
                         <span className="text-[10px] uppercase tracking-wide font-semibold bg-red-600/20 text-red-200 border border-red-500/40 rounded-full px-2 py-0.5">

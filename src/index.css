@@ -157,3 +157,19 @@
   }
 
 }
+
+/* Mobile responsiveness hardening */
+@media (max-width: 767px) {
+  body {
+    overflow-x: hidden;
+  }
+  #root {
+    overflow-x: hidden;
+    width: 100vw;
+  }
+}
+
+/* Prevent flex children from blowing out container */
+.min-w-0-important {
+  min-width: 0 !important;
+}
