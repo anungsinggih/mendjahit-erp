@@ -7,8 +7,8 @@ SET search_path = public, extensions;
 -- 1. Whitelist (Required by Trigger)
 INSERT INTO public.signup_whitelist (email, invited_role, notes)
 VALUES 
-  ('owner@ziyada.com', 'OWNER', 'Seeded via SQL'),
-  ('admin@ziyada.com', 'ADMIN', 'Seeded via SQL')
+  ('owner@mendjahit.com', 'OWNER', 'Seeded via SQL'),
+  ('admin@mendjahit.com', 'ADMIN', 'Seeded via SQL')
 ON CONFLICT (email) DO UPDATE SET invited_role = excluded.invited_role;
 
 -- 2. Auth Users (pgcrypto required) - IDEMPOTENT via DO block
@@ -18,7 +18,7 @@ DECLARE
   v_admin_id uuid := gen_random_uuid();
 BEGIN
   -- Owner
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'owner@ziyada.com') THEN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'owner@mendjahit.com') THEN
     INSERT INTO auth.users (
       instance_id, id, aud, role, email, encrypted_password, 
       email_confirmed_at, recovery_sent_at, last_sign_in_at, 
@@ -29,11 +29,11 @@ BEGIN
       v_owner_id, 
       'authenticated', 
       'authenticated', 
-      'owner@ziyada.com', 
+      'owner@mendjahit.com', 
       crypt('owner123'::text, gen_salt('bf'::text)), 
       now(), now(), now(), 
       '{"provider":"email","providers":["email"]}', 
-      '{"full_name":"Owner Ziyada","role":"OWNER"}', 
+      '{"full_name":"Owner Mendjahit","role":"OWNER"}', 
       now(), now(), '', '', '', ''
     );
     
@@ -41,12 +41,12 @@ BEGIN
     INSERT INTO auth.identities (
       id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
     ) VALUES (
-      gen_random_uuid(), v_owner_id, format('{"sub":"%s","email":"%s"}', v_owner_id, 'owner@ziyada.com')::jsonb, 'email', v_owner_id::text, now(), now(), now()
+      gen_random_uuid(), v_owner_id, format('{"sub":"%s","email":"%s"}', v_owner_id, 'owner@mendjahit.com')::jsonb, 'email', v_owner_id::text, now(), now(), now()
     );
   END IF;
 
   -- Admin
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@ziyada.com') THEN
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@mendjahit.com') THEN
     INSERT INTO auth.users (
       instance_id, id, aud, role, email, encrypted_password, 
       email_confirmed_at, recovery_sent_at, last_sign_in_at, 
@@ -57,11 +57,11 @@ BEGIN
       v_admin_id, 
       'authenticated', 
       'authenticated', 
-      'admin@ziyada.com', 
+      'admin@mendjahit.com', 
       crypt('admin123'::text, gen_salt('bf'::text)), 
       now(), now(), now(), 
       '{"provider":"email","providers":["email"]}', 
-      '{"full_name":"Admin Ziyada","role":"ADMIN"}', 
+      '{"full_name":"Admin Mendjahit","role":"ADMIN"}', 
       now(), now(), '', '', '', ''
     );
 
@@ -69,7 +69,7 @@ BEGIN
     INSERT INTO auth.identities (
       id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
     ) VALUES (
-      gen_random_uuid(), v_admin_id, format('{"sub":"%s","email":"%s"}', v_admin_id, 'admin@ziyada.com')::jsonb, 'email', v_admin_id::text, now(), now(), now()
+      gen_random_uuid(), v_admin_id, format('{"sub":"%s","email":"%s"}', v_admin_id, 'admin@mendjahit.com')::jsonb, 'email', v_admin_id::text, now(), now(), now()
     );
   END IF;
 END $$;

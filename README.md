@@ -1,4 +1,4 @@
-# Ziyada ERP — Phase 1 (ERP Dagang Konveksi)
+# Mendjahit ERP — Phase 1 (ERP Dagang Konveksi)
 
 Internal ERP for the Konveksi business: sales, purchases, inventory, and finance (AR/AP). Phase 1 is *locked scope*—refer to `.agent/rules/PHASE-1-SCOPE-PROJECT.md` and `.agent/rules/IMPLEMENTATION-CHECKLIST-PHASE-1.md` before adding anything new.
 

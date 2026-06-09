@@ -745,7 +745,7 @@ export default function PurchaseDetail() {
           }}
           items={items}
           company={{
-            name: "ZIYADA SPORT",
+            name: "Mendjahit SPORT",
           }}
           banks={companyBanks}
           visibleOnScreen
@@ -769,7 +769,7 @@ export default function PurchaseDetail() {
           }}
           items={items}
           company={{
-            name: "ZIYADA SPORT",
+            name: "Mendjahit SPORT",
           }}
           banks={companyBanks}
           visibleOnScreen

@@ -47,7 +47,7 @@ export default function Login() {
         <div className="flex justify-center items-center h-screen bg-gray-50">
             <div className="w-full max-w-md px-4">
                 <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Ziyada</h1>
+                    <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Mendjahit</h1>
                     <p className="text-gray-500 mt-2">Enterprise Resource Planning</p>
                 </div>
 
@@ -110,7 +110,7 @@ export default function Login() {
                 </Card>
 
                 <div className="text-center mt-8 text-xs text-gray-400">
-                    &copy; {new Date().getFullYear()} Ziyada ERP. All rights reserved.
+                    &copy; {new Date().getFullYear()} Mendjahit ERP. All rights reserved.
                 </div>
             </div>
         </div>

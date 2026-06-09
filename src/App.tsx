@@ -275,11 +275,11 @@ function App() {
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
                   <img
                     src="/logo.png"
-                    alt="Ziyada ERP"
+                    alt="Mendjahit ERP"
                     className="h-8 w-auto rounded"
                   />
-                  <span className="hidden sm:inline">Ziyada ERP</span>
-                  <span className="sm:hidden">Ziyada</span>
+                  <span className="hidden sm:inline">Mendjahit ERP</span>
+                  <span className="sm:hidden">Mendjahit</span>
                 </h1>
                 {/* Mobile close button */}
                 <button

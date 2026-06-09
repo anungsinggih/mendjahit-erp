@@ -62,5 +62,5 @@ export function usePageTitle() {
     }
 
     // Default fallback
-    return 'Ziyada ERP'
+    return 'Mendjahit ERP'
 }

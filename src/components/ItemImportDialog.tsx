@@ -86,8 +86,8 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
         ]
         const sampleData = [
             // Finished Goods - menggunakan UOM dan atribut sesuai seed
-            ['TS-001', 'Kaos Polos Cotton 30s Hitam L', 'Ziyada', 'Fashion', 'PCS', 'L', 'Hitam', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 100],
-            ['TS-002', 'Kaos Polos Cotton 30s Putih M', 'Ziyada', 'Fashion', 'PCS', 'M', 'Putih', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 150],
+            ['TS-001', 'Kaos Polos Cotton 30s Hitam L', 'Mendjahit', 'Fashion', 'PCS', 'L', 'Hitam', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 100],
+            ['TS-002', 'Kaos Polos Cotton 30s Putih M', 'Mendjahit', 'Fashion', 'PCS', 'M', 'Putih', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 150],
 
             // Raw Materials
             ['RM-FAB-BLK', 'Kain Cotton Combed 30s Hitam', 'Gracindo', 'Bahan Baku', 'PCS', 'ALL', 'Hitam', 'RAW_MATERIAL', 0, 0, 85000, 50, 500],
@@ -95,7 +95,7 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
 
             // Karate Niche Samples (TRADED)
             ['KA-GI-KUMITE-L', 'Baju Karate Kumite Size L', 'Hokido', 'Karate Gi', 'STEL', 'L', 'Putih', 'TRADED', 450000, 400000, 250000, 5, 50],
-            ['KA-BELT-BLK', 'Sabuk Karate Hitam Standar', 'Ziyada', 'Accessories', 'PCS', 'ALL', 'Hitam', 'TRADED', 75000, 65000, 40000, 20, 200],
+            ['KA-BELT-BLK', 'Sabuk Karate Hitam Standar', 'Mendjahit', 'Accessories', 'PCS', 'ALL', 'Hitam', 'TRADED', 75000, 65000, 40000, 20, 200],
             ['KA-PROT-CHEST-M', 'Chest Protector Size M', 'Muvon', 'Protector', 'SET', 'M', 'Putih', 'TRADED', 350000, 310000, 200000, 3, 30]
         ]
 

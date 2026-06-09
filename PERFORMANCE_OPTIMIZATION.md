@@ -1,4 +1,4 @@
-# 🚀 Saran Optimasi Performa - Ziyada MVP App
+# 🚀 Saran Optimasi Performa - Mendjahit ERP App
 
 ## 📊 Analisis Aplikasi Saat Ini
 

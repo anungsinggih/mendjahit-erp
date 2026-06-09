@@ -171,7 +171,7 @@ export function CommandPalette() {
                         <span className="mx-2">·</span>
                         <span className="font-semibold text-gray-500">↵</span> to select
                     </span>
-                    <span>Ziyada ERP</span>
+                    <span>Mendjahit ERP</span>
                 </div>
             </div>
         </div>

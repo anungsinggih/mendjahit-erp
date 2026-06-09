@@ -21,7 +21,7 @@ export function MobileHeader({ mobileMenuOpen, onToggleMenu, periodStatus }: Mob
                     {mobileMenuOpen ? <Icons.Close className="w-6 h-6 text-white" /> : <Icons.Menu className="w-6 h-6 text-white" />}
                 </button>
                 <div className="flex items-center gap-2">
-                    <img src="/logo.png" alt="Ziyada ERP" className="h-8 w-auto rounded" />
+                    <img src="/logo.png" alt="Mendjahit ERP" className="h-8 w-auto rounded" />
                     <span className="text-white font-semibold text-sm">{pageTitle}</span>
                     {periodStatus === 'CLOSED' && (
                         <span className="text-[10px] uppercase tracking-wide font-semibold bg-red-600/20 text-red-200 border border-red-500/40 rounded-full px-2 py-0.5">
