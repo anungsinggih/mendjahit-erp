@@ -250,8 +250,8 @@ export default function Reporting() {
 
     const PrintFrame = ({ children }: { children: ReactNode }) => (
         <div className="print:w-[210mm] print:mx-auto print:bg-white print:text-black print:font-sans print:leading-tight print:px-8 print:py-6 print:relative print:!mt-0">
-            <div className="hidden print:block absolute top-0 right-0 h-full w-2 bg-[#EE2E24] z-0"></div>
-            <div className="hidden print:block absolute top-0 right-2 w-24 h-24 bg-gradient-to-bl from-gray-100 to-transparent z-0 opacity-50"></div>
+            <div className="hidden print:block absolute top-0 left-0 h-full w-2 bg-indigo-600 z-0"></div>
+            <div className="hidden print:block absolute top-0 left-2 w-24 h-24 bg-gradient-to-br from-indigo-50 to-transparent z-0 opacity-50"></div>
             <div className="print:relative print:z-10">
                 {children}
             </div>
@@ -263,17 +263,23 @@ export default function Reporting() {
         <div className="hidden print:block mb-6 border-b-2 border-slate-200 pb-4">
             <div className="flex justify-between items-start">
                 <div className="w-1/2">
-                    <div className="flex flex-col">
-                        <div className="text-3xl font-black tracking-tight leading-none text-black italic">
-                            <span className="text-[#EE2E24]">M</span>ENDJAHIT
-                            <span className="text-gray-400 font-light not-italic ml-1 text-lg">konveksi</span>
-                        </div>
-                        <div className="text-[7px] font-bold tracking-[0.2em] text-[#EE2E24] uppercase mt-1 pl-1">
-                            Dare to be Different
+                    <div className="flex items-center gap-2">
+                        <img
+                            src="/logo.png"
+                            alt="Mendjahit"
+                            className="h-10 w-auto object-contain"
+                        />
+                        <div className="flex flex-col">
+                            <div className="text-3xl font-black tracking-tight leading-none text-black">
+                                MENDJAHIT
+                            </div>
+                            <div className="text-[7px] font-bold tracking-[0.2em] text-indigo-600 uppercase mt-0.5">
+                                Konveksi Paling Paham Mahasiswa
+                            </div>
                         </div>
                     </div>
                     <div className="mt-4">
-                        <div className="text-[10px] font-bold text-gray-900 border-l-2 border-[#EE2E24] pl-2 uppercase">
+                        <div className="text-[10px] font-bold text-gray-900 border-l-2 border-indigo-600 pl-2 uppercase">
                             Financial Report
                         </div>
                         <div className="text-[9px] text-gray-500 pl-2 mt-0.5 font-mono">
@@ -281,7 +287,7 @@ export default function Reporting() {
                         </div>
                     </div>
                 </div>
-                <div className="w-[40%] text-right pt-1">
+                <div className="w-[35%] text-right pt-1">
                     <div className="text-[7px] uppercase tracking-wider text-gray-500 font-bold mb-0.5">Periode</div>
                     <div className="text-[10px] font-bold text-gray-900">
                         {startDate} - {endDate}
