@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePurchaseDetailQuery, useQueryClient } from "../hooks/useQueries";
@@ -14,8 +14,6 @@ import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 import DocumentHeaderCard from "./shared/DocumentHeaderCard";
 import LineItemsTable from "./shared/LineItemsTable";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
-import { PurchaseInvoicePrint } from "./print/PurchaseInvoicePrint";
-import { toPng } from "html-to-image";
 
 // Helper for error message if shared util not sufficient or local override needed
 const getErrorMessageLocal = (error: unknown) => {
@@ -55,16 +53,6 @@ type PurchaseItem = {
   subtotal: number;
 };
 
-type CompanyBank = {
-  id: string;
-  code: string;
-  bank_name: string;
-  account_number: string;
-  account_holder: string;
-  is_active: boolean;
-  is_default: boolean;
-};
-
 export default function PurchaseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -81,7 +69,6 @@ export default function PurchaseDetail() {
   const error = fetchError ? getErrorMessageLocal(fetchError) : null;
 
   // --- Company banks (separate, lightweight) ---
-  const [companyBanks, setCompanyBanks] = useState<CompanyBank[]>([]);
 
   // --- Action state (unchanged) ---
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -90,9 +77,6 @@ export default function PurchaseDetail() {
   const [postError, setPostError] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-  const printRef = useRef<HTMLDivElement | null>(null);
-  const imageRef = useRef<HTMLDivElement | null>(null);
   const { confirm } = useConfirm();
   const itemsTotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const discountAmount = purchase?.discount_amount || 0;
@@ -101,21 +85,6 @@ export default function PurchaseDetail() {
     ? (discountAmount > 0 && purchase.total_amount >= itemsTotal ? computedTotal : (purchase.total_amount || computedTotal))
     : itemsTotal;
 
-  useEffect(() => {
-    if (id) {
-      fetchCompanyBanks();
-    }
-  }, [id]);
-
-  async function fetchCompanyBanks() {
-    const { data } = await supabase
-      .from("company_banks")
-      .select("*")
-      .eq("is_active", true)
-      .order("is_default", { ascending: false })
-      .order("bank_name", { ascending: true });
-    if (data) setCompanyBanks(data);
-  }
 
   async function handleDeleteDraft() {
     if (!purchase) return;
@@ -189,72 +158,6 @@ export default function PurchaseDetail() {
       setIsPosting(false);
     }
   }
-
-  const downloadFileName = useMemo(() => {
-    const docNo = purchase?.purchase_no || purchase?.id || "invoice";
-    return `purchase-${docNo}.png`;
-  }, [purchase?.id, purchase?.purchase_no]);
-
-  const handleDownloadImage = async () => {
-    if (!imageRef.current) return;
-    setDownloadError(null);
-    try {
-      const source = imageRef.current;
-      const clone = source.cloneNode(true) as HTMLDivElement;
-      clone.style.position = "fixed";
-      clone.style.left = "0";
-      clone.style.top = "0";
-      clone.style.opacity = "1";
-      clone.style.zIndex = "9999";
-      clone.style.pointerEvents = "none";
-      clone.style.transform = "none";
-      clone.style.background = "#ffffff";
-      clone.style.width = "794px";
-      clone.style.maxWidth = "794px";
-      clone.style.height = "auto";
-      clone.style.maxHeight = "none";
-      document.body.appendChild(clone);
-      const captureHeight = Math.max(1, clone.scrollHeight);
-      const dataUrl = await toPng(clone, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        skipFonts: true,
-        width: 794,
-        height: captureHeight,
-        filter: (node) => {
-          if (node.nodeName === "STYLE") {
-            const content = (node as HTMLStyleElement).textContent || "";
-            if (content.includes("@page")) return false;
-          }
-          return true;
-        },
-        style: {
-          visibility: "visible",
-          opacity: "1",
-          transform: "none",
-          position: "static",
-          left: "0",
-          top: "0",
-          zIndex: "auto",
-          fontFamily: "Arial, sans-serif",
-        },
-      });
-      document.body.removeChild(clone);
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = downloadFileName;
-      link.click();
-    } catch (err) {
-      console.error(err);
-      if (printRef.current) {
-        const clones = Array.from(document.body.querySelectorAll("div"))
-          .filter((el) => el.style.zIndex === "9999" && el.style.position === "fixed");
-        clones.forEach((el) => el.remove());
-      }
-      setDownloadError("Gagal download invoice sebagai gambar.");
-    }
-  };
 
   if (loading) {
     return (
@@ -579,7 +482,7 @@ export default function PurchaseDetail() {
             <p className="font-semibold text-slate-900">{formatCurrency(displayTotal)}</p>
           </div>
         </div>
-        {(deleteError || deleteSuccess || postError || postSuccess || downloadError) && (
+        {(deleteError || deleteSuccess || postError || postSuccess ) && (
           <div className="w-full">
             {postError && (
               <Alert variant="error" title="Gagal" description={postError} />
@@ -590,9 +493,6 @@ export default function PurchaseDetail() {
                 title="Berhasil"
                 description={postSuccess}
               />
-            )}
-            {downloadError && (
-              <Alert variant="error" title="Gagal" description={downloadError} />
             )}
             {deleteError && (
               <Alert variant="error" title="Gagal" description={deleteError} />
@@ -727,55 +627,7 @@ export default function PurchaseDetail() {
         </div>
       </div>
 
-      <div
-        ref={printRef}
-        className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto print:!mt-0"
-      >
-        <PurchaseInvoicePrint
-          data={{
-            id: purchase.id,
-            purchase_no: purchase.purchase_no,
-            purchase_date: purchase.purchase_date,
-            vendor_name: purchase.vendor_name,
-            terms: purchase.terms,
-            total_amount: displayTotal,
-            discount_amount: purchase.discount_amount,
-            notes: purchase.notes,
-            payment_method_code: purchase.payment_method_code
-          }}
-          items={items}
-          company={{
-            name: "Mendjahit SPORT",
-          }}
-          banks={companyBanks}
-          visibleOnScreen
-        />
-      </div>
-      <div
-        ref={imageRef}
-        className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:hidden"
-      >
-        <PurchaseInvoicePrint
-          data={{
-            id: purchase.id,
-            purchase_no: purchase.purchase_no,
-            purchase_date: purchase.purchase_date,
-            vendor_name: purchase.vendor_name,
-            terms: purchase.terms,
-            total_amount: displayTotal,
-            discount_amount: purchase.discount_amount,
-            notes: purchase.notes,
-            payment_method_code: purchase.payment_method_code
-          }}
-          items={items}
-          company={{
-            name: "Mendjahit SPORT",
-          }}
-          banks={companyBanks}
-          visibleOnScreen
-          mode="image"
-        />
-      </div>
+
 
     </div>
   );

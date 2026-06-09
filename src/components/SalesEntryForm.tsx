@@ -806,7 +806,7 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                                     <div className="flex-grow">
                                         <div className="flex flex-col gap-1.5 mb-1">
                                             <div className="flex justify-between items-center">
-                                                <label className="text-sm font-medium text-[var(--text-main)]">Product (F4)</label>
+                                                <label className="text-sm font-medium text-[var(--text-main)]">Product</label>
                                                 {/* Mini Filter Tabs */}
                                                 <div className="flex bg-gray-100 p-0.5 rounded-lg">
                                                     {(["ALL", ITEM_TYPES.TRADED, ITEM_TYPES.FINISHED_GOOD] as const).map(type => (
