@@ -93,6 +93,16 @@ export const SalesInvoicePrint: FunctionComponent<SalesInvoicePrintProps> = ({ d
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
                     }
+                    /* Prevent orphan rows and keep footer intact */
+                    tr {
+                        page-break-inside: avoid;
+                    }
+                    thead {
+                        display: table-header-group;
+                    }
+                    .print-footer {
+                        page-break-inside: avoid;
+                    }
                 `}
             </style>
             {pages.map((pageItems, pageIndex) => {
@@ -221,7 +231,7 @@ export const SalesInvoicePrint: FunctionComponent<SalesInvoicePrintProps> = ({ d
                             </div>
 
                             {/* --- FOOTER & TOTALS --- */}
-                            <div className={`mt-2 pt-2 border-t-2 border-dashed border-gray-100 flex justify-between items-start ${showFooter ? "" : "invisible"}`}>
+                            <div className={`print-footer mt-2 pt-2 border-t-2 border-dashed border-gray-100 flex justify-between items-start ${showFooter ? "" : "invisible"}`}>
                                 {/* Left: Bank Information Card */}
                                 <div className="w-[55%]">
                                     <div className="text-[7px] text-gray-500 uppercase tracking-widest mb-1 font-bold">Transfer Pembayaran</div>
