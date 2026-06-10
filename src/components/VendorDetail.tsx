@@ -2,6 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useVendorDetailQuery } from "../hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
+import { PageHeader } from "./ui/PageHeader";
 import { Badge } from "./ui/Badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Alert } from "./ui/Alert";
@@ -41,27 +42,33 @@ export default function VendorDetail() {
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/vendors")}>
-            Back
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">{vendor?.name || "Vendor Detail"}</h2>
-            {vendor && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Badge variant={vendor.is_active ? "success" : "secondary"}>
-                  {vendor.is_active ? "Active" : "Inactive"}
-                </Badge>
-                <Badge variant="outline">{getTypeLabel(vendor.vendor_type)}</Badge>
-              </div>
-            )}
+      <PageHeader
+        title={vendor?.name || "Vendor Detail"}
+        description={vendor ? `Profile and transaction history for ${vendor.name}.` : "View vendor details and recent activity."}
+        breadcrumbs={[
+          { label: "Vendors", href: "/vendors" },
+          { label: "Detail" }
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/vendors")}>
+              Back
+            </Button>
+            <Button onClick={() => navigate(`/purchases?vendor=${id}`)} icon={<Icons.Cart className="w-4 h-4" />}>
+              Create Purchase
+            </Button>
           </div>
+        }
+      />
+
+      {vendor && (
+        <div className="flex items-center gap-2 -mt-4 mb-4">
+          <Badge variant={vendor.is_active ? "success" : "secondary"}>
+            {vendor.is_active ? "Active" : "Inactive"}
+          </Badge>
+          <Badge variant="outline">{getTypeLabel(vendor.vendor_type)}</Badge>
         </div>
-        <Button onClick={() => navigate(`/purchases?vendor=${id}`)} icon={<Icons.Cart className="w-4 h-4" />}>
-          Create Purchase
-        </Button>
-      </div>
+      )}
 
       {error && <Alert variant="error" title="Error" description={error} />}
 

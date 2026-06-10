@@ -8,6 +8,7 @@ import { Switch } from './ui/Switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
+import { PageHeader } from './ui/PageHeader'
 import { getErrorMessage } from '../lib/errors'
 import { useConfirm } from './ui/ConfirmDialogContext'
 
@@ -107,7 +108,10 @@ export default function COA() {
 
     return (
         <div className="w-full space-y-8">
-            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Chart of Accounts (COA)</h2>
+            <PageHeader
+                title="Chart of Accounts"
+                description="Organize your financial accounts, define account types, and manage system accounts."
+            />
             {error && <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2"><Icons.Warning className="w-5 h-5 flex-shrink-0" /> Error: {error}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">

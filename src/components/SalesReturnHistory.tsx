@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from '../lib/format'
 import { useSalesReturnHistoryQuery, prefetchSalesReturnDetail, useQueryClient } from '../hooks/useQueries'
 import { usePagination } from '../hooks/usePagination'
 import { Pagination } from './ui/Pagination'
+import { PageHeader } from './ui/PageHeader'
 
 export default function SalesReturnHistory() {
     const navigate = useNavigate()
@@ -43,15 +44,18 @@ export default function SalesReturnHistory() {
 
     return (
         <div className="w-full space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Sales Return History</h2>
-                <div className="flex gap-2">
-                    <Button onClick={() => refetch()} variant="outline" size="icon" icon={<Icons.Refresh className="w-4 h-4" />} title="Refresh" />
-                    <Button onClick={() => navigate('/sales-return')} icon={<Icons.Plus className="w-4 h-4" />}>
-                        New Return
-                    </Button>
-                </div>
-            </div>
+            <PageHeader
+                title="Sales Return History"
+                description="View and track all customer returns, credited amounts, and document statuses."
+                actions={
+                    <div className="flex gap-2">
+                        <Button onClick={() => refetch()} variant="outline" size="icon" icon={<Icons.Refresh className={`w-4 h-4 ${isFetching && !isLoading ? 'animate-spin' : ''}`} />} title="Refresh" />
+                        <Button onClick={() => navigate('/sales-return')} icon={<Icons.Plus className="w-4 h-4" />}>
+                            New Return
+                        </Button>
+                    </div>
+                }
+            />
 
             {fetchErrorMessage && (
                 <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-center gap-2">

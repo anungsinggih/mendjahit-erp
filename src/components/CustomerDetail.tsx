@@ -2,6 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useCustomerDetailQuery } from "../hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
+import { PageHeader } from "./ui/PageHeader";
 import { Badge } from "./ui/Badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Alert } from "./ui/Alert";
@@ -27,29 +28,35 @@ export default function CustomerDetail() {
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate("/customers")}>
-            Back
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">{customer?.name || "Customer Detail"}</h2>
-            {customer && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Badge variant={customer.is_active ? "success" : "secondary"}>
-                  {customer.is_active ? "Active" : "Inactive"}
-                </Badge>
-                <Badge variant={customer.customer_type === "CUSTOM" ? "warning" : "secondary"}>
-                  {customer.customer_type}
-                </Badge>
-              </div>
-            )}
+      <PageHeader
+        title={customer?.name || "Customer Detail"}
+        description={customer ? `Profile and transaction history for ${customer.name}.` : "View customer details and recent activity."}
+        breadcrumbs={[
+          { label: "Customers", href: "/customers" },
+          { label: "Detail" }
+        ]}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/customers")}>
+              Back
+            </Button>
+            <Button onClick={() => navigate(`/sales?customer=${id}`)} icon={<Icons.Cart className="w-4 h-4" />}>
+              Create Sale
+            </Button>
           </div>
+        }
+      />
+
+      {customer && (
+        <div className="flex items-center gap-2 -mt-4 mb-4">
+          <Badge variant={customer.is_active ? "success" : "secondary"}>
+            {customer.is_active ? "Active" : "Inactive"}
+          </Badge>
+          <Badge variant={customer.customer_type === "CUSTOM" ? "warning" : "secondary"}>
+            {customer.customer_type}
+          </Badge>
         </div>
-        <Button onClick={() => navigate(`/sales?customer=${id}`)} icon={<Icons.Cart className="w-4 h-4" />}>
-          Create Sale
-        </Button>
-      </div>
+      )}
 
       {error && <Alert variant="error" title="Error" description={error} />}
 

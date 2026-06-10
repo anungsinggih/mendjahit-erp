@@ -14,6 +14,7 @@ import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from '../hooks/useQueries';
+import { PageHeader } from "./ui/PageHeader";
 
 type Sale = {
     id: string
@@ -387,14 +388,15 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Sales Return</h2>
-                <div className="flex gap-2">
+            <PageHeader
+                title="Sales Return"
+                description="Process customer returns, adjust inventory, and issue refunds or credits."
+                actions={
                     <Button onClick={() => navigate('/sales-returns/history')} variant="outline" icon={<Icons.FileText className="w-4 h-4" />}>
                         Return History
                     </Button>
-                </div>
-            </div>
+                }
+            />
             <Card className="shadow-md border-gray-200">
                 <CardHeader className="bg-blue-50/50 pb-4 border-b border-blue-100">
                     <CardTitle className="text-blue-900 flex items-center gap-2">

@@ -1,11 +1,13 @@
 import { SimpleMasterCRUD } from './SimpleMasterCRUD'
+import { PageHeader } from './ui/PageHeader'
 
 export default function Attributes() {
     return (
         <div className="w-full space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="hidden md:block text-2xl font-bold tracking-tight">Product Attributes</h2>
-            </div>
+            <PageHeader
+                title="Product Attributes"
+                description="Define sizes, colors, and units of measurement for your inventory items."
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <SimpleMasterCRUD table="sizes" title="Sizes" hasCode />

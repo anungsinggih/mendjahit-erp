@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { InventoryList } from "./InventoryList";
 import StockCard from "./StockCard";
 import StockAdjustment from "./StockAdjustment";
+import OpeningStock from "./OpeningStock";
 import { Icons } from "./ui/Icons";
 import { PageHeader } from "./ui/PageHeader";
 
@@ -11,11 +12,17 @@ export default function Inventory() {
     const [view, setView] = useState<'list' | 'card'>('list');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [adjustItem, setAdjustItem] = useState<{ id: string; name: string } | null>(null);
+    const [openingStockItem, setOpeningStockItem] = useState<{ id: string; name: string } | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     function handleAdjustSuccess() {
         setRefreshTrigger(p => p + 1);
         setAdjustItem(null);
+    }
+
+    function handleOpeningStockSuccess() {
+        setRefreshTrigger(p => p + 1);
+        setOpeningStockItem(null);
     }
 
     return (
@@ -83,7 +90,10 @@ export default function Inventory() {
 
                 {/* Right: History / Global Feed */}
                 <div className={`h-full ${view === 'card' ? 'block' : 'hidden lg:block'}`}>
-                    <StockCard itemId={selectedId} />
+                    <StockCard 
+                        itemId={selectedId} 
+                        onSetOpeningStock={(id, name) => setOpeningStockItem({ id, name })}
+                    />
                 </div>
             </div>
 
@@ -109,6 +119,32 @@ export default function Inventory() {
                                 isEmbedded={true}
                                 onSuccess={handleAdjustSuccess}
                                 onCancel={() => setAdjustItem(null)}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Opening Stock Modal */}
+            {openingStockItem && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 ring-1 ring-black/5">
+                        <div className="bg-indigo-50/50 px-6 py-4 border-b border-indigo-100/50 flex justify-between items-center">
+                            <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+                                <div className="bg-indigo-100 p-1 rounded-full">
+                                    <Icons.Package className="w-4 h-4 text-indigo-600" />
+                                </div>
+                                Set Opening Stock: {openingStockItem.name}
+                            </h3>
+                            <button onClick={() => setOpeningStockItem(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <Icons.Close className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <OpeningStock
+                                initialItemId={openingStockItem.id}
+                                isEmbedded={true}
+                                onSuccess={handleOpeningStockSuccess}
                             />
                         </div>
                     </div>

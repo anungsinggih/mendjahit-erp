@@ -623,7 +623,7 @@ export default function Reporting() {
                             </PrintFrame>
                         </TabsContent>
 
-                        <TabsContent value="GL" className="print:block print:pt-0">
+                        <TabsContent value="GL" className="print:block print:pt-0 max-w-7xl mx-auto">
                             <PrintFrame>
                                 <PrintHeader title="General Ledger" />
                                 <Section title="General Ledger" description="Detailed transaction history." className="border-t-4 border-t-orange-500 print:border-none print:shadow-none print:p-0">

@@ -3,8 +3,8 @@ import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import { Icons } from './ui/Icons'
-import * as XLSX from 'xlsx'
 import { useConfirm } from './ui/ConfirmDialogContext'
+// xlsx is loaded dynamically when import/export is triggered
 
 type ImportDialogProps = {
     isOpen: boolean
@@ -31,10 +31,11 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
         }
     }
 
-    const parseFile = (file: File) => {
+    const parseFile = async (file: File) => {
         const reader = new FileReader()
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
+                const XLSX = await import('xlsx')
                 const data = new Uint8Array(e.target?.result as ArrayBuffer)
                 const workbook = XLSX.read(data, { type: 'array' })
                 const sheetName = workbook.SheetNames[0]
@@ -77,7 +78,8 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
         }
     }
 
-    const downloadTemplate = () => {
+    const downloadTemplate = async () => {
+        const XLSX = await import('xlsx')
         const headers = [
             'sku', 'name',
             'brand_name', 'category_name',

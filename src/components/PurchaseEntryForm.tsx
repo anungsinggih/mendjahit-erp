@@ -70,6 +70,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
     const [terms, setTerms] = useState<"CASH" | "CREDIT">("CASH");
     const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([]);
+    const [vendorCostMap, setVendorCostMap] = useState<Record<string, number>>({});
     const [paymentMethodCode, setPaymentMethodCode] = useState("");
     const [notes, setNotes] = useState("");
     const [discountAmount, setDiscountAmount] = useState(0);
@@ -114,6 +115,26 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     }, []);
 
     const presetVendorId = searchParams.get("vendor") || "";
+
+    const fetchVendorCosts = useCallback(async (targetVendorId: string) => {
+        if (!targetVendorId) {
+            setVendorCostMap({});
+            return;
+        }
+        try {
+            const { data, error } = await supabase
+                .from("vendor_items")
+                .select("item_id, unit_cost")
+                .eq("vendor_id", targetVendorId)
+                .eq("is_active", true);
+            if (error) throw error;
+            const nextMap = Object.fromEntries((data || []).map((row) => [row.item_id, Number(row.unit_cost) || 0]));
+            setVendorCostMap(nextMap);
+        } catch (err) {
+            console.error("Failed to fetch vendor item costs", err);
+            setVendorCostMap({});
+        }
+    }, []);
 
     const fetchMasterData = useCallback(async () => {
         try {
@@ -175,6 +196,10 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     }, [presetVendorId, vendorId, initialPurchaseId]);
 
     useEffect(() => {
+        fetchVendorCosts(vendorId);
+    }, [vendorId, fetchVendorCosts]);
+
+    useEffect(() => {
         if (!initialPurchaseId) return;
 
         const loadPurchase = async () => {
@@ -193,6 +218,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 }
 
                 setVendorId(purchaseData.vendor_id);
+                await fetchVendorCosts(purchaseData.vendor_id);
                 setPurchaseDate(purchaseData.purchase_date);
                 setTerms(purchaseData.terms);
                 setPaymentMethodCode(purchaseData.payment_method_code || "");
@@ -248,7 +274,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         };
 
         loadPurchase();
-    }, [initialPurchaseId, onError, normalizeLines]);
+    }, [initialPurchaseId, onError, normalizeLines, fetchVendorCosts]);
 
     useEffect(() => {
         if (terms === "CREDIT") {
@@ -374,6 +400,25 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         [itemsTotal, discountAmount]
     );
 
+    const syncVendorItemCosts = useCallback(async (targetVendorId: string, normalizedLines: PurchaseLine[]) => {
+        if (!targetVendorId || normalizedLines.length === 0) return;
+        const itemTypeById = new Map(items.map((item) => [item.id, item.type]));
+        const payload = normalizedLines
+            .filter((line) => (itemTypeById.get(line.item_id) !== ITEM_TYPES.FINISHED_GOOD))
+            .map((line) => ({
+                vendor_id: targetVendorId,
+                item_id: line.item_id,
+                unit_cost: line.cost_price,
+                last_purchase_at: purchaseDate,
+                is_active: true,
+            }));
+        if (payload.length === 0) return;
+        const { error } = await supabase
+            .from("vendor_items")
+            .upsert(payload, { onConflict: "vendor_id,item_id" });
+        if (error) throw error;
+    }, [items, purchaseDate]);
+
     const handleSaveDraft = useCallback(async () => {
         if (!vendorId) {
             onError("Select Vendor");
@@ -432,6 +477,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 });
 
                 if (rpcError) throw rpcError;
+                await syncVendorItemCosts(vendorId, normalizedLines);
 
                 onSuccess(`Draft Updated! ID: ${initialPurchaseId}`);
                 onSaved?.(initialPurchaseId);
@@ -479,6 +525,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                     p_items: lineData
                 });
                 if (rpcError) throw rpcError;
+                await syncVendorItemCosts(vendorId, normalizedLines);
 
                 setLines([]);
                 setVendorId("");
@@ -515,7 +562,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         onSuccess,
         onSaved,
         redirectOnSave,
-        navigate
+        navigate,
+        syncVendorItemCosts
     ]);
 
     useEffect(() => {
@@ -721,7 +769,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                                     const item = items.find((i) => i.id === newItemId);
                                                     if (item) {
                                                         const isFG = item.type === ITEM_TYPES.FINISHED_GOOD;
-                                                        setCostPrice(isFG ? 0 : (item.default_price_buy || 0));
+                                                        const vendorCost = vendorCostMap[item.id];
+                                                        setCostPrice(isFG ? 0 : (vendorCost ?? item.default_price_buy ?? 0));
                                                     }
 
                                                     // Auto focus to Cost Price
@@ -832,7 +881,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                         .reduce((sum, l) => sum + l.qty, 0);
 
                                     const isFG = selectedItem?.type === ITEM_TYPES.FINISHED_GOOD;
-                                    const masterCost = selectedItem?.default_price_buy ?? 0;
+                                    const masterCost = selectedItem ? (vendorCostMap[selectedItem.id] ?? selectedItem.default_price_buy ?? 0) : 0;
                                     const isCostChanged = costPrice !== null && costPrice !== masterCost && !isFG;
 
                                     return (
@@ -844,8 +893,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                                 <div className="text-xs text-orange-600 bg-orange-50 p-1.5 rounded border border-orange-100 flex gap-1 items-start">
                                                     <Icons.Warning className="w-3 h-3 mt-0.5 flex-shrink-0" />
                                                     <span>
-                                                        Harga berbeda dari master ({masterCost.toLocaleString()}).
-                                                        Master data akan diupdate otomatis saat simpan.
+                                                        Harga berbeda dari referensi vendor/master ({masterCost.toLocaleString()}).
+                                                        Harga vendor-item akan diupdate otomatis saat simpan.
                                                     </span>
                                                 </div>
                                             )}

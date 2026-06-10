@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import {
     Table,
@@ -18,6 +18,7 @@ type AP = {
     bill_date: string;
     bill_no: string;
     vendor: { name: string };
+    purchase?: { purchase_no: string };
     total_amount: number;
     outstanding_amount: number;
     status: string;
@@ -25,7 +26,7 @@ type AP = {
 
 type Props = {
     selectedId: string | null;
-    onSelect: (id: string, amount: number) => void;
+    onSelect: (id: string, amount: number, refNo?: string) => void;
     refreshTrigger: number;
     initialSelectedId?: string | null;
 };
@@ -43,7 +44,8 @@ export function FinanceAPList({ selectedId, onSelect, refreshTrigger, initialSel
         if (!search.trim()) return apListRaw
         const q = search.toLowerCase()
         return apListRaw.filter(item =>
-            item.bill_no?.toLowerCase().includes(q) ||
+            item.id?.toLowerCase().includes(q) ||
+            (item.bill_no?.toLowerCase().includes(q) || item.purchase?.purchase_no?.toLowerCase().includes(q)) ||
             item.vendor?.name?.toLowerCase().includes(q)
         )
     }, [apListRaw, search])
@@ -55,13 +57,20 @@ export function FinanceAPList({ selectedId, onSelect, refreshTrigger, initialSel
         }
     }, [initialSelectedId]);
 
+    const hasOpenedRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!initialSelectedId) {
+            hasOpenedRef.current = null;
+        }
+    }, [initialSelectedId]);
+
     // Auto-open modal if initialSelectedId is found
     useEffect(() => {
-        if (initialSelectedId && apList.length > 0) {
-            const item = apList.find(i => i.id === initialSelectedId);
+        if (initialSelectedId && apList.length > 0 && hasOpenedRef.current !== initialSelectedId) {
+            const item = apList.find(i => i.id === initialSelectedId || i.purchase?.purchase_no === initialSelectedId || i.bill_no === initialSelectedId);
             if (item) {
-                // Trigger parent onSelect to open modal
-                onSelect(item.id, item.outstanding_amount);
+                hasOpenedRef.current = initialSelectedId;
+                onSelect(item.id, item.outstanding_amount, item.purchase?.purchase_no || item.bill_no || item.id.substring(0,8));
             }
         }
     }, [initialSelectedId, apList, onSelect]);
@@ -71,7 +80,7 @@ export function FinanceAPList({ selectedId, onSelect, refreshTrigger, initialSel
         try {
             let query = supabase
                 .from("ap_bills")
-                .select("*, vendor:vendors(name)")
+                .select("*, vendor:vendors(name), purchase:purchases(purchase_no)")
                 .order("bill_date", { ascending: true });
 
             if (statusFilter === "OUTSTANDING") {
@@ -232,7 +241,7 @@ export function FinanceAPList({ selectedId, onSelect, refreshTrigger, initialSel
                                                         <span className="font-semibold text-slate-900">{item.vendor?.name}</span>
                                                         <span className="text-xs text-slate-500 flex items-center gap-1">
                                                             <Icons.FileText className="w-3 h-3" />
-                                                            {item.bill_no || '-'}
+                                                            {item.purchase?.purchase_no || item.bill_no || '-'}
                                                         </span>
                                                     </div>
                                                 </TableCell>
@@ -260,7 +269,7 @@ export function FinanceAPList({ selectedId, onSelect, refreshTrigger, initialSel
                                                             className="h-8 px-3 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-medium"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                onSelect(item.id, item.outstanding_amount);
+                                                                onSelect(item.id, item.outstanding_amount, item.purchase?.purchase_no || item.bill_no || item.id.substring(0,8));
                                                             }}
                                                             disabled={isPaid}
                                                         >

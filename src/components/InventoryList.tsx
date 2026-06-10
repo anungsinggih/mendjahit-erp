@@ -11,7 +11,7 @@ import { Pagination } from "./ui/Pagination";
 import { Section } from "./ui/Section";
 import { ButtonSelect } from "./ui/ButtonSelect";
 import { useInventoryQuery, type InventoryQueryItem } from "../hooks/useQueries";
-import * as XLSX from "xlsx";
+// xlsx is loaded dynamically only when export is triggered
 import { useConfirm } from "./ui/ConfirmDialogContext";
 import { getErrorMessage } from "../lib/errors";
 
@@ -126,6 +126,8 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
                 })
                 return
             }
+
+            const XLSX = await import("xlsx")
 
             const exportRows = rows.map((item, index) => ({
                 No: index + 1,

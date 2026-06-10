@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "./ui/Table";
 import { Button } from "./ui/Button";
+import { PageHeader } from "./ui/PageHeader";
 import { useConfirm } from "./ui/ConfirmDialogContext";
 import { Badge } from "./ui/Badge";
 import { CustomerBadge } from "./ui/CustomerBadge";
@@ -311,89 +312,93 @@ export default function SalesDetail() {
   return (
     <div className="w-full space-y-6 print:space-y-0">
       <div className="flex flex-col gap-3 print:hidden">
-        <div className="flex justify-between items-center">
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-            Sales Detail
-          </h2>
-          <div className="flex gap-2 no-print flex-wrap">
-            {/* Register Payment Action */}
-            {sale.status === "POSTED" &&
-              sale.terms === "CREDIT" &&
-              relatedDocs.ar_status !== "PAID" && (
+        <PageHeader
+          title="Sales Detail"
+          description={`Document: ${sale.sales_no || `Doc No: ${sale.id.substring(0, 8)}`} — View sales transaction details, print invoice, or manage returns.`}
+          breadcrumbs={[
+            { label: "Sales History", href: "/sales/history" },
+            { label: "Detail" }
+          ]}
+          actions={
+            <div className="flex gap-2 no-print flex-wrap">
+              {sale.status === "POSTED" &&
+                sale.terms === "CREDIT" &&
+                relatedDocs.ar_status !== "PAID" && (
+                  <Button
+                    variant="success"
+                    onClick={() => {
+                      if (relatedDocs.ar_invoice_id) {
+                        navigate(`/finance?ar=${sale.sales_no || relatedDocs.ar_invoice_id}`);
+                      }
+                    }}
+                    icon={<Icons.DollarSign className="w-4 h-4" />}
+                  >
+                    Register Payment
+                  </Button>
+                )}
+              {sale.status === "POSTED" && (
                 <Button
-                  variant="success"
-                  onClick={() => {
-                    if (relatedDocs.ar_invoice_id) {
-                      navigate(`/finance?ar=${relatedDocs.ar_invoice_id}`);
-                    }
-                  }}
-                  icon={<Icons.DollarSign className="w-4 h-4" />}
+                  onClick={() => navigate(`/sales-return?sales=${sale.id}`)}
+                  variant="primary"
+                  icon={<Icons.Plus className="w-4 h-4" />}
                 >
-                  Register Payment
+                  Create Return
                 </Button>
               )}
-            {sale.status === "POSTED" && (
               <Button
-                onClick={() => navigate(`/sales-return?sales=${sale.id}`)}
-                variant="primary"
-                icon={<Icons.Plus className="w-4 h-4" />}
+                onClick={() => window.print()}
+                variant="outline"
+                icon={<Icons.Printer className="w-4 h-4" />}
               >
-                Create Return
+                Print
               </Button>
-            )}
-            <Button
-              onClick={() => window.print()}
-              variant="outline"
-              icon={<Icons.Printer className="w-4 h-4" />}
-            >
-              Print
-            </Button>
-            <Button
-              onClick={handleDownloadImage}
-              variant="outline"
-              icon={<Icons.Image className="w-4 h-4" />}
-            >
-              Download Invoice
-            </Button>
-            <Button
-              onClick={() => navigate("/sales/history")}
-              variant="outline"
-              icon={<Icons.ArrowLeft className="w-4 h-4" />}
-            >
-              Back to List
-            </Button>
-            {sale.status === "DRAFT" && (
               <Button
-                onClick={() => navigate(`/sales/${sale.id}/edit`)}
-                variant="primary"
-                icon={<Icons.Edit className="w-4 h-4" />}
+                onClick={handleDownloadImage}
+                variant="outline"
+                icon={<Icons.Image className="w-4 h-4" />}
               >
-                Edit
+                Download Invoice
               </Button>
-            )}
-            {sale.status === "DRAFT" && (
               <Button
-                onClick={handlePostDraft}
-                isLoading={isPosting}
-                disabled={isPosting}
-                variant="success"
-                icon={<Icons.Check className="w-4 h-4" />}
+                onClick={() => navigate("/sales/history")}
+                variant="outline"
+                icon={<Icons.ArrowLeft className="w-4 h-4" />}
               >
-                Post
+                Back to List
               </Button>
-            )}
-            {sale.status === "DRAFT" && (
-              <Button
-                variant="danger"
-                onClick={handleDeleteDraft}
-                isLoading={isDeleting}
-                disabled={isDeleting}
-              >
-                Delete Draft
-              </Button>
-            )}
-          </div>
-        </div>
+              {sale.status === "DRAFT" && (
+                <Button
+                  onClick={() => navigate(`/sales/${sale.id}/edit`)}
+                  variant="primary"
+                  icon={<Icons.Edit className="w-4 h-4" />}
+                >
+                  Edit
+                </Button>
+              )}
+              {sale.status === "DRAFT" && (
+                <Button
+                  onClick={handlePostDraft}
+                  isLoading={isPosting}
+                  disabled={isPosting}
+                  variant="success"
+                  icon={<Icons.Check className="w-4 h-4" />}
+                >
+                  Post
+                </Button>
+              )}
+              {sale.status === "DRAFT" && (
+                <Button
+                  variant="danger"
+                  onClick={handleDeleteDraft}
+                  isLoading={isDeleting}
+                  disabled={isDeleting}
+                >
+                  Delete Draft
+                </Button>
+              )}
+            </div>
+          }
+        />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 bg-white border border-slate-200 rounded-lg p-4">
           <div className="space-y-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-500">Doc No</p>
@@ -462,7 +467,7 @@ export default function SalesDetail() {
                 <div>
                   <CardTitle>Sales Document</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">
-                    {sale.sales_no || `ID: ${sale.id.substring(0, 8)}`}
+                    {sale.sales_no || `Doc No: ${sale.id.substring(0, 8)}`}
                   </p>
                 </div>
                 {getStatusBadge(sale.status)}
@@ -695,7 +700,7 @@ export default function SalesDetail() {
                         title: "Journal Entry",
                         description: (
                           <p>
-                            ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
+                            Doc No: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
                             {new Date(relatedDocs.journal_date!).toLocaleDateString(
                               "id-ID",
                             )}
@@ -721,7 +726,7 @@ export default function SalesDetail() {
                         title: "Receipt (CASH)",
                         description: (
                           <p>
-                            ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
+                            Doc No: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
                             {formatCurrency(relatedDocs.receipt_amount!)}
                           </p>
                         ),
@@ -738,7 +743,7 @@ export default function SalesDetail() {
                         title: "AR Invoice (CREDIT)",
                         description: (
                           <p>
-                            ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
+                            Doc No: {sale.sales_no || relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
                             {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
                             {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
                             <Badge className="ml-1">{relatedDocs.ar_status}</Badge>

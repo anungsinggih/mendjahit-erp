@@ -10,6 +10,7 @@ import { useConfirm } from './ui/ConfirmDialogContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import ItemForm from './ItemForm'
 import { ItemImportDialog } from './ItemImportDialog'
+import VendorItemManager from './VendorItemManager'
 import { usePagination } from '../hooks/usePagination'
 import { useDebounce } from '../hooks/useDebounce'
 import { Pagination } from './ui/Pagination'
@@ -18,7 +19,7 @@ import { Section } from './ui/Section'
 import { ResponsiveTable } from './ui/ResponsiveTable'
 import { getErrorMessage } from '../lib/errors'
 import { useItemsQuery } from '../hooks/useQueries'
-import * as XLSX from 'xlsx'
+// xlsx is loaded dynamically only when export is triggered
 
 import type { Item } from "../types/shared";
 import { ITEM_TYPES, type ItemType } from "../lib/constants";
@@ -34,12 +35,13 @@ type ItemRowProps = {
     item: Item
     onEdit: (item: Item) => void
     onDelete: (id: string) => void
+    onOpenVendorItems?: (item: Item) => void
     isSelected: boolean
     isSelectable: boolean
     onToggleSelect: (id: string) => void
 }
 
-const ItemRow = memo(({ item, onEdit, onDelete, isSelected, isSelectable, onToggleSelect }: ItemRowProps) => (
+const ItemRow = memo(({ item, onEdit, onDelete, onOpenVendorItems, isSelected, isSelectable, onToggleSelect }: ItemRowProps) => (
     <TableRow className="hover:bg-slate-50/80 transition-colors">
         <TableCell className="w-12">
             <input
@@ -89,11 +91,23 @@ const ItemRow = memo(({ item, onEdit, onDelete, isSelected, isSelectable, onTogg
         </TableCell>
         <TableCell className="text-right">
             <div className="flex justify-end gap-1">
+                {onOpenVendorItems && (
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); onOpenVendorItems(item) }}
+                    className="h-9 w-9 p-0 text-slate-400 hover:text-amber-600"
+                    title="Supplier HPP"
+                >
+                    <Icons.Tag className="w-[18px] h-[18px]" />
+                </Button>
+                )}
                 <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => onEdit(item)}
                     className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
+                    title="Edit Item"
                 >
                     <Icons.Edit className="w-[22px] h-[22px]" />
                 </Button>
@@ -119,6 +133,8 @@ export default function Items() {
     const [editingItem, setEditingItem] = useState<Item | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isImportOpen, setIsImportOpen] = useState(false)
+    const [vendorItemItemId, setVendorItemItemId] = useState<string | null>(null)
+    const [vendorItemItemName, setVendorItemItemName] = useState('')
     const { confirm } = useConfirm()
     const [isExporting, setIsExporting] = useState(false)
     const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
@@ -182,6 +198,11 @@ export default function Items() {
         })
     }, [eligibleVisibleIds])
 
+    const handleOpenVendorItems = useCallback((item: Item) => {
+        setVendorItemItemId(item.id)
+        setVendorItemItemName(item.name)
+    }, [])
+
     const handleExportXlsx = useCallback(async () => {
         setIsExporting(true)
         try {
@@ -197,6 +218,8 @@ export default function Items() {
                 })
                 return
             }
+
+            const XLSX = await import('xlsx')
 
             const exportRows = exportItems.map((item, index) => ({
                 No: index + 1,
@@ -540,6 +563,7 @@ export default function Items() {
                                             item={item}
                                             onEdit={handleEdit}
                                             onDelete={handleDelete}
+                                            onOpenVendorItems={handleOpenVendorItems}
                                             isSelected={selectedItemIds.includes(item.id)}
                                             isSelectable={isBatchPriceEligible(item)}
                                             onToggleSelect={handleToggleItemSelection}
@@ -660,6 +684,14 @@ export default function Items() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <VendorItemManager
+                isOpen={!!vendorItemItemId}
+                onClose={() => setVendorItemItemId(null)}
+                itemId={vendorItemItemId || ''}
+                itemName={vendorItemItemName}
+                onSaved={() => {}}
+            />
 
             <ItemImportDialog
                 isOpen={isImportOpen}

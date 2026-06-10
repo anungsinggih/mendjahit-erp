@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/Card'
+import { Card, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
+import { PageHeader } from './ui/PageHeader'
+import { Section } from './ui/Section'
+import { Alert } from './ui/Alert'
 
 type Item = { id: string; name: string; sku: string }
 
@@ -90,7 +93,6 @@ export default function OpeningStock({ initialItemId, isEmbedded, onSuccess }: P
             setSuccess("Opening Stock Set!")
             setQty(0)
             setReason('Opening Stock')
-            setReason('Opening Stock')
             if (onSuccess) setTimeout(onSuccess, 1000)
             else setTimeout(() => navigate(-1), 1000)
             if (!initialItemId) setItemId('')
@@ -103,14 +105,16 @@ export default function OpeningStock({ initialItemId, isEmbedded, onSuccess }: P
     }
 
     const content = (
-        <div className="space-y-5 pt-2">
-            {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm">{error}</div>}
+        <div className="space-y-5">
+            {error && <Alert variant="error" description={error} />}
             {openingExists && (
-                <div className="p-3 bg-yellow-50 text-yellow-800 rounded-md text-sm border border-yellow-200">
-                    Opening stock untuk item ini sudah pernah dibuat. Tidak bisa input lagi.
-                </div>
+                <Alert
+                    variant="warning"
+                    title="Sudah Ada Saldo"
+                    description="Opening stock untuk item ini sudah pernah dibuat. Tidak bisa input lagi."
+                />
             )}
-            {success && <div className="p-3 bg-green-100 text-green-700 rounded-md text-sm">{success}</div>}
+            {success && <Alert variant="success" description={success} />}
 
             {!initialItemId && (
                 <Select
@@ -161,18 +165,19 @@ export default function OpeningStock({ initialItemId, isEmbedded, onSuccess }: P
     if (isEmbedded) return content
 
     return (
-        <div className="w-full max-w-6xl mx-auto space-y-6 px-3 sm:px-4 lg:px-6 pb-20">
-            <Card className="shadow-lg border-gray-200">
-                <CardHeader className="bg-blue-50 border-b border-blue-100 pb-4">
-                    <CardTitle className="text-xl text-blue-800">Setup Opening Stock</CardTitle>
-                    <CardDescription className="text-blue-600/80">
-                        Input saldo awal stok barang. Pastikan tanggal dan jumlah sesuai dengan kondisi fisik saat cut-off.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {content}
-                </CardContent>
-            </Card>
+        <div className="space-y-6">
+            <PageHeader
+                title="Setup Opening Stock"
+                description="Input saldo awal stok barang. Pastikan tanggal dan jumlah sesuai dengan kondisi fisik saat cut-off."
+            />
+
+            <Section>
+                <Card className="shadow-md border-gray-200">
+                    <CardContent className="pt-6">
+                        {content}
+                    </CardContent>
+                </Card>
+            </Section>
         </div>
     )
 }

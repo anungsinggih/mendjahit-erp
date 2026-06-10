@@ -3,12 +3,17 @@ import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePurchaseDetailQuery, useQueryClient } from "../hooks/useQueries";
 import { Button } from "./ui/Button";
+import { PageHeader } from "./ui/PageHeader";
 import { useConfirm } from "./ui/ConfirmDialogContext";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Badge } from "./ui/Badge";
 import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
+import { Input } from "./ui/Input";
+import { Combobox } from "./ui/Combobox";
+import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from "./ui/Dialog";
+import { PurchaseInvoicePrint } from "./print/PurchaseInvoicePrint";
 import { StatusBadge } from "./ui/StatusBadge";
 import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 import DocumentHeaderCard from "./shared/DocumentHeaderCard";
@@ -77,7 +82,53 @@ export default function PurchaseDetail() {
   const [postError, setPostError] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [isDPModalOpen, setIsDPModalOpen] = useState(false);
+  const [dpDate, setDpDate] = useState(new Date().toISOString().split("T")[0]);
+  const [dpAmount, setDpAmount] = useState<number>(0);
+  const [dpAccountId, setDpAccountId] = useState("");
+  const [dpNotes, setDpNotes] = useState("");
+  const [dpLoading, setDpLoading] = useState(false);
+  const [cashBankAccounts, setCashBankAccounts] = useState<Array<{id: string, name: string, code: string}>>([]);
   const { confirm } = useConfirm();
+
+  async function handleOpenDPModal() {
+    if (relatedDocs.dp_journals && relatedDocs.dp_journals.length > 0) return;
+    try {
+      const { data, error } = await supabase
+        .from("accounts")
+        .select("id, name, code")
+        .in("account_type", ["ASSET"])
+        .order("code");
+      if (error) throw error;
+      setCashBankAccounts(data.filter((a: { code: string }) => a.code.startsWith("11")));
+      setIsDPModalOpen(true);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleSubmitDP() {
+    if (!purchase || dpAmount <= 0 || !dpAccountId) return;
+    setDpLoading(true);
+    try {
+      const { error } = await supabase.rpc("rpc_create_purchase_down_payment", {
+        p_purchase_id: purchase.id,
+        p_journal_date: dpDate,
+        p_amount: dpAmount,
+        p_payment_account_id: dpAccountId,
+        p_notes: dpNotes || null
+      });
+      if (error) throw error;
+      setPostSuccess("DP Journal created successfully.");
+      setIsDPModalOpen(false);
+      refetch();
+    } catch (err: unknown) {
+      if (err instanceof Error) setPostError(err.message || "Failed to create DP");
+    } finally {
+      setDpLoading(false);
+    }
+  }
+
   const itemsTotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const discountAmount = purchase?.discount_amount || 0;
   const computedTotal = itemsTotal - discountAmount;
@@ -85,6 +136,10 @@ export default function PurchaseDetail() {
     ? (discountAmount > 0 && purchase.total_amount >= itemsTotal ? computedTotal : (purchase.total_amount || computedTotal))
     : itemsTotal;
 
+  const dpTotal = (relatedDocs.dp_journals || []).reduce((sum, dp) => sum + (dp.amount || 0), 0);
+  const paidAmount = purchase?.terms === "CASH"
+    ? (relatedDocs.payment_amount || 0)
+    : (relatedDocs.ap_total != null && relatedDocs.ap_outstanding != null ? (relatedDocs.ap_total - relatedDocs.ap_outstanding) : 0);
 
   async function handleDeleteDraft() {
     if (!purchase) return;
@@ -278,6 +333,31 @@ export default function PurchaseDetail() {
 
 
   const relatedItems: RelatedDocumentItem[] = [];
+
+  // Down Payments (DP)
+  if (relatedDocs.dp_journals && relatedDocs.dp_journals.length > 0) {
+    relatedDocs.dp_journals.forEach((dp) => {
+      relatedItems.push({
+        id: dp.id,
+        title: "Down Payment",
+        description: (
+          <p>
+            Doc No: {purchase.purchase_no || dp.id.substring(0, 8)} | Amount:{" "}
+            {formatCurrency(dp.amount)} | Date: {formatDate(dp.journal_date)}
+          </p>
+        ),
+        icon: <Icons.DollarSign className="w-5 h-5" />,
+        toneClassName: "bg-indigo-50",
+        iconClassName: "text-indigo-500",
+        actionLabel: "View DP",
+        onAction: () =>
+          navigate(
+            `/journals?q=${encodeURIComponent(dp.id)}`
+          ),
+      });
+    });
+  }
+
   if (purchase.status === "POSTED") {
     if (relatedDocs.journal_id) {
       relatedItems.push({
@@ -285,7 +365,7 @@ export default function PurchaseDetail() {
         title: "Journal Entry",
         description: (
           <p>
-            ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
+            Doc No: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
             {formatDate(relatedDocs.journal_date)}
           </p>
         ),
@@ -307,7 +387,7 @@ export default function PurchaseDetail() {
         title: "AP Bill (CREDIT)",
         description: (
           <p>
-            ID: {relatedDocs.ap_bill_id.substring(0, 8)} | Total:{" "}
+            Doc No: {purchase.purchase_no || relatedDocs.ap_bill_id.substring(0, 8)} | Total:{" "}
             {formatCurrency(relatedDocs.ap_total!)} | Outstanding:{" "}
             {formatCurrency(relatedDocs.ap_outstanding!)} | Status:{" "}
             <Badge className="ml-1">{relatedDocs.ap_status}</Badge>
@@ -316,11 +396,17 @@ export default function PurchaseDetail() {
         icon: <Icons.FileText className="w-5 h-5" />,
         toneClassName: "bg-orange-50",
         iconClassName: "text-orange-500",
-        actionLabel: "Open AP",
+        actionLabel: relatedDocs.ap_status === "PAID" ? "Open Journal" : "Open AP",
         onAction: () =>
-          navigate(
-            `/finance?ap=${encodeURIComponent(relatedDocs.ap_bill_id!)}`
-          ),
+          relatedDocs.ap_status === "PAID"
+            ? navigate(
+              `/journals?q=${encodeURIComponent(
+                purchase.purchase_no || relatedDocs.ap_bill_id!
+              )}`
+            )
+            : navigate(
+              `/finance?ap=${encodeURIComponent(relatedDocs.ap_bill_id!)}`
+            ),
       });
     }
     if (relatedDocs.payment_id) {
@@ -329,13 +415,36 @@ export default function PurchaseDetail() {
         title: "Payment (CASH)",
         description: (
           <p>
-            ID: {relatedDocs.payment_id.substring(0, 8)} | Amount:{" "}
+            Doc No: {relatedDocs.payment_id.substring(0, 8)} | Amount:{" "}
             {formatCurrency(relatedDocs.payment_amount!)}
           </p>
         ),
         icon: <Icons.DollarSign className="w-5 h-5" />,
         toneClassName: "bg-green-50",
         iconClassName: "text-green-500",
+      });
+    }
+
+    if (relatedDocs.ap_payments && relatedDocs.ap_payments.length > 0) {
+      relatedDocs.ap_payments.forEach((p) => {
+        relatedItems.push({
+          id: p.id,
+          title: "AP Payment",
+          description: (
+            <p>
+              Doc No: {p.payment_no || p.id.substring(0, 8)} | Amount:{" "}
+              {formatCurrency(p.amount)} | Date: {formatDate(p.payment_date)}
+            </p>
+          ),
+          icon: <Icons.DollarSign className="w-5 h-5" />,
+          toneClassName: "bg-green-50",
+          iconClassName: "text-green-500",
+          actionLabel: "View Payment",
+          onAction: () =>
+            navigate(
+              `/journals?q=${encodeURIComponent(p.payment_no || p.id)}`
+            ),
+        });
       });
     }
     if (!relatedDocs.journal_id && inventoryHistory.length > 0) {
@@ -371,75 +480,97 @@ export default function PurchaseDetail() {
   return (
     <div className="w-full space-y-6 print:space-y-0">
       <div className="flex flex-col gap-3 print:hidden">
-        <div className="flex justify-between items-center">
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-            Purchase Detail
-          </h2>
-          <div className="flex gap-2 no-print flex-wrap">
-            {/* Register Payment Action */}
-            {purchase.status === "POSTED" &&
-              purchase.terms === "CREDIT" &&
-              relatedDocs.ap_status !== "PAID" && (
+        <PageHeader
+          title="Purchase Detail"
+          description={`Document: ${purchase.purchase_no || purchase.id.substring(0, 8)} — View purchase order details, track status, or manage supplier returns.`}
+          breadcrumbs={[
+            { label: "Purchase History", href: "/purchases/history" },
+            { label: "Detail" }
+          ]}
+          actions={
+            <div className="flex gap-2 no-print flex-wrap">
+              {purchase.status === "POSTED" &&
+                purchase.terms === "CREDIT" &&
+                relatedDocs.ap_status !== "PAID" && (
+                  <Button
+                    variant="success"
+                    onClick={() => {
+                      if (relatedDocs.ap_bill_id) {
+                        navigate(`/finance?ap=${purchase.purchase_no || relatedDocs.ap_bill_id}`);
+                      }
+                    }}
+                    icon={<Icons.DollarSign className="w-4 h-4" />}
+                  >
+                    Register Payment
+                  </Button>
+                )}
+              {purchase.status === "POSTED" && (
                 <Button
-                  variant="success"
-                  onClick={() => {
-                    if (relatedDocs.ap_bill_id) {
-                      navigate(`/finance?ap=${relatedDocs.ap_bill_id}`);
-                    }
-                  }}
-                  icon={<Icons.DollarSign className="w-4 h-4" />}
+                  onClick={() => navigate(`/purchase-return?purchase=${purchase.id}`)}
+                  variant="primary"
+                  icon={<Icons.Plus className="w-4 h-4" />}
                 >
-                  Register Payment
+                  Create Return
                 </Button>
               )}
-            {purchase.status === "POSTED" && (
               <Button
-                onClick={() => navigate(`/purchase-return?purchase=${purchase.id}`)}
-                variant="primary"
-                icon={<Icons.Plus className="w-4 h-4" />}
+                onClick={() => navigate("/purchases/history")}
+                variant="outline"
+                icon={<Icons.ArrowLeft className="w-4 h-4" />}
               >
-                Create Return
+                Back to List
               </Button>
-            )}
-            <Button
-              onClick={() => navigate("/purchases/history")}
-              variant="outline"
-              icon={<Icons.ArrowLeft className="w-4 h-4" />}
-            >
-              Back to List
-            </Button>
-            {purchase.status === "DRAFT" && (
-              <Button
-                onClick={handlePost}
-                disabled={isPosting}
-                isLoading={isPosting}
-                variant="success"
-                icon={<Icons.Check className="w-4 h-4" />}
-              >
-                POST
-              </Button>
-            )}
-            {purchase.status === "DRAFT" && (
-              <Button
-                onClick={() => navigate(`/purchases/${purchase.id}/edit`)}
-                variant="primary"
-                icon={<Icons.Edit className="w-4 h-4" />}
-              >
-                Edit
-              </Button>
-            )}
-            {purchase.status === "DRAFT" && (
-              <Button
-                variant="danger"
-                onClick={handleDeleteDraft}
-                isLoading={isDeleting}
-                disabled={isDeleting}
-              >
-                Delete Draft
-              </Button>
-            )}
-          </div>
-        </div>
+              {purchase.status === "DRAFT" && (
+                <Button
+                  onClick={() => window.print()}
+                  variant="outline"
+                  icon={<Icons.Printer className="w-4 h-4" />}
+                >
+                  Print PO
+                </Button>
+              )}
+              {purchase.status === "DRAFT" && (!relatedDocs.dp_journals || relatedDocs.dp_journals.length === 0) && (
+                <Button
+                  onClick={handleOpenDPModal}
+                  variant="outline"
+                  icon={<Icons.DollarSign className="w-4 h-4" />}
+                >
+                  Bayar DP
+                </Button>
+              )}
+              {purchase.status === "DRAFT" && (
+                <Button
+                  onClick={handlePost}
+                  disabled={isPosting}
+                  isLoading={isPosting}
+                  variant="success"
+                  icon={<Icons.Check className="w-4 h-4" />}
+                >
+                  POST
+                </Button>
+              )}
+              {purchase.status === "DRAFT" && (
+                <Button
+                  onClick={() => navigate(`/purchases/${purchase.id}/edit`)}
+                  variant="primary"
+                  icon={<Icons.Edit className="w-4 h-4" />}
+                >
+                  Edit
+                </Button>
+              )}
+              {purchase.status === "DRAFT" && (
+                <Button
+                  variant="danger"
+                  onClick={handleDeleteDraft}
+                  isLoading={isDeleting}
+                  disabled={isDeleting}
+                >
+                  Delete Draft
+                </Button>
+              )}
+            </div>
+          }
+        />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 bg-white border border-slate-200 rounded-lg p-4">
           <div className="space-y-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-500">Doc No</p>
@@ -544,10 +675,22 @@ export default function PurchaseDetail() {
                       <span className="font-medium">{paymentMethodName || purchase.payment_method_code || "-"}</span>
                     </div>
                   )}
-                  {purchase.terms === "CREDIT" && relatedDocs.ap_outstanding != null && (
+                  {dpTotal > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Outstanding</span>
-                      <span className="font-semibold text-amber-600">
+                      <span className="text-gray-500">DP Terbayar</span>
+                      <span className="font-medium text-indigo-600">{formatCurrency(dpTotal)}</span>
+                    </div>
+                  )}
+                  {paidAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Pembayaran</span>
+                      <span className="font-medium text-green-600">{formatCurrency(paidAmount)}</span>
+                    </div>
+                  )}
+                  {purchase.terms === "CREDIT" && relatedDocs.ap_outstanding != null && (
+                    <div className="flex justify-between border-t mt-1 pt-1">
+                      <span className="text-gray-700 font-semibold">Sisa Tagihan</span>
+                      <span className="font-bold text-amber-600">
                         {formatCurrency(relatedDocs.ap_outstanding)}
                       </span>
                     </div>
@@ -606,7 +749,7 @@ export default function PurchaseDetail() {
               </Card>
             )}
 
-            {purchase.status === "POSTED" && (
+            {relatedItems.length > 0 && (
               <RelatedDocumentsCard items={relatedItems} />
             )}
           </div>
@@ -614,6 +757,83 @@ export default function PurchaseDetail() {
       </div>
 
 
+
+
+      {/* DP Modal */}
+      <Dialog isOpen={isDPModalOpen} onClose={() => !dpLoading && setIsDPModalOpen(false)}>
+        <DialogHeader>
+          <DialogTitle>Bayar Down Payment (DP)</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+        <div className="space-y-4">
+          <Input
+            label="Date"
+            type="date"
+            value={dpDate}
+            onChange={(e) => setDpDate(e.target.value)}
+            disabled={dpLoading}
+          />
+          <Input
+            label="Nominal DP"
+            type="number"
+            value={dpAmount || ""}
+            onChange={(e) => setDpAmount(Number(e.target.value))}
+            disabled={dpLoading}
+          />
+          <Combobox
+            label="Payment Account"
+            value={dpAccountId}
+            onChange={(val) => setDpAccountId(val)}
+            placeholder="Pilih Akun Kas/Bank"
+            options={cashBankAccounts.map((a) => ({ label: `${a.code} - ${a.name}`, value: a.id }))}
+          />
+          <Input
+            label="Notes"
+            value={dpNotes}
+            onChange={(e) => setDpNotes(e.target.value)}
+            placeholder="DP PO-..."
+            disabled={dpLoading}
+          />
+        </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsDPModalOpen(false)} disabled={dpLoading}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSubmitDP} isLoading={dpLoading}>
+            Submit DP
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* PO Print */}
+      {purchase.status === "DRAFT" && (
+        <PurchaseInvoicePrint
+          data={{
+            id: purchase.id,
+            purchase_no: purchase.purchase_no,
+            purchase_date: purchase.purchase_date,
+            vendor_name: purchase.vendor_name,
+            terms: purchase.terms,
+            total_amount: displayTotal,
+            discount_amount: purchase.discount_amount,
+            notes: purchase.notes,
+            payment_method_code: purchase.payment_method_code,
+          }}
+          items={items.map((item) => ({
+            id: item.item_id,
+            item_name: item.item_name,
+            size_name: item.size_name,
+            color_name: item.color_name,
+            unit_cost: item.unit_cost,
+            qty: item.qty,
+            subtotal: item.subtotal,
+          }))}
+          company={null}
+          visibleOnScreen={false}
+          mode="print"
+        />
+      )}
 
     </div>
   );

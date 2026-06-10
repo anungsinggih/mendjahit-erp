@@ -1,5 +1,6 @@
 import { useToast } from "./ui/Toast";
 import { PurchaseEntryForm } from "./PurchaseEntryForm";
+import { PageHeader } from "./ui/PageHeader";
 
 export default function Purchases() {
   const { toast } = useToast();
@@ -15,14 +16,10 @@ export default function Purchases() {
   return (
     <div className="relative">
       <div className="w-full space-y-6 pb-28">
-        <div className="flex items-baseline justify-between">
-          <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
-            Purchases Management
-          </h2>
-          <span className="hidden md:block text-sm text-gray-500">
-            Draft = editable, Posted = locked
-          </span>
-        </div>
+        <PageHeader
+          title="Purchases"
+          description="Record new purchases, manage stock entries, and track supplier invoices."
+        />
       </div>
 
 

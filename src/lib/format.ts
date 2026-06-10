@@ -42,5 +42,5 @@ export function safeDocNo(
   if (trimmed) return trimmed;
   if (!fallbackId) return "-";
   const shortId = fallbackId.substring(0, 8);
-  return withLabel ? `ID: ${shortId}` : shortId;
+  return withLabel ? `Doc No: ${shortId}` : shortId;
 }

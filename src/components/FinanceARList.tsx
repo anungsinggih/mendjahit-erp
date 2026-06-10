@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import {
     Table,
@@ -18,6 +18,7 @@ type AR = {
     invoice_date: string;
     invoice_no: string;
     customer: { name: string };
+    sales?: { sales_no: string };
     total_amount: number;
     outstanding_amount: number;
     status: string;
@@ -25,7 +26,7 @@ type AR = {
 
 type Props = {
     selectedId: string | null;
-    onSelect: (id: string, amount: number) => void;
+    onSelect: (id: string, amount: number, refNo?: string) => void;
     refreshTrigger: number;
     initialSelectedId?: string | null;
 };
@@ -43,7 +44,8 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
         if (!search.trim()) return arListRaw
         const q = search.toLowerCase()
         return arListRaw.filter(item =>
-            item.invoice_no?.toLowerCase().includes(q) ||
+            item.id?.toLowerCase().includes(q) ||
+            (item.invoice_no?.toLowerCase().includes(q) || item.sales?.sales_no?.toLowerCase().includes(q)) ||
             item.customer?.name?.toLowerCase().includes(q)
         )
     }, [arListRaw, search])
@@ -55,13 +57,20 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
         }
     }, [initialSelectedId]);
 
+    const hasOpenedRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!initialSelectedId) {
+            hasOpenedRef.current = null;
+        }
+    }, [initialSelectedId]);
+
     // Auto-open modal if initialSelectedId is found and loaded
     useEffect(() => {
-        if (initialSelectedId && arList.length > 0) {
-            const item = arList.find(i => i.id === initialSelectedId);
+        if (initialSelectedId && arList.length > 0 && hasOpenedRef.current !== initialSelectedId) {
+            const item = arList.find(i => i.id === initialSelectedId || i.sales?.sales_no === initialSelectedId || i.invoice_no === initialSelectedId);
             if (item) {
-                // Trigger parent onSelect to open modal
-                onSelect(item.id, item.outstanding_amount);
+                hasOpenedRef.current = initialSelectedId;
+                onSelect(item.id, item.outstanding_amount, item.sales?.sales_no || item.invoice_no || item.id.substring(0,8));
             }
         }
     }, [initialSelectedId, arList, onSelect]);
@@ -71,7 +80,7 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
         try {
             let query = supabase
                 .from("ar_invoices")
-                .select("*, customer:customers(name)")
+                .select("*, customer:customers(name), sales:sales(sales_no)")
                 .order("invoice_date", { ascending: true });
 
             if (statusFilter === "OUTSTANDING") {
@@ -232,7 +241,7 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
                                                         <span className="font-semibold text-slate-900">{item.customer?.name}</span>
                                                         <span className="text-xs text-slate-500 flex items-center gap-1">
                                                             <Icons.FileText className="w-3 h-3" />
-                                                            {item.invoice_no || '-'}
+                                                            {item.sales?.sales_no || item.invoice_no || '-'}
                                                         </span>
                                                     </div>
                                                 </TableCell>
@@ -260,7 +269,7 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
                                                             className="h-8 px-3 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                onSelect(item.id, item.outstanding_amount);
+                                                                onSelect(item.id, item.outstanding_amount, item.sales?.sales_no || item.invoice_no || item.id.substring(0,8));
                                                             }}
                                                             disabled={isPaid}
                                                         >

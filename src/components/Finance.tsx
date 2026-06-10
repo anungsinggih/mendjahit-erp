@@ -31,6 +31,7 @@ export default function Finance() {
   // Shared Form State
   const [selectedId, setSelectedId] = useState("");
   const [selectedAmount, setSelectedAmount] = useState(0);
+  const [selectedRef, setSelectedRef] = useState("");
 
   // Payment Methods State (Shared)
   const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([]);
@@ -185,9 +186,10 @@ export default function Finance() {
     }
   }
 
-  function handleSelect(id: string, amount: number) {
+  function handleSelect(id: string, amount: number, refNo: string = "") {
     setSelectedId(id);
     setSelectedAmount(amount);
+    setSelectedRef(refNo);
     setError(null);
     setSuccess(null);
     setFormType(activeTab);
@@ -198,6 +200,7 @@ export default function Finance() {
     setSuccess(msg);
     setSelectedId("");
     setSelectedAmount(0);
+    setSelectedRef("");
     setRefreshTrigger(prev => prev + 1); // Trigger List Refresh
     setFormOpen(false);
 
@@ -228,10 +231,10 @@ export default function Finance() {
   }
 
   return (
-    <div className="w-full space-y-8 pb-12 max-w-[1600px] mx-auto">
+    <div className="w-full space-y-8 pb-12 max-w-7xl mx-auto">
       <PageHeader
-        title="Finance & Cash Flow"
-        description="Monitor outstanding invoices, pay bills, and manage cash flow."
+        title="Receivable & Payable"
+        description="Monitor outstanding invoices and pay bills."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Finance' }]}
       />
 
@@ -402,7 +405,7 @@ export default function Finance() {
 
       <Dialog isOpen={formOpen} onClose={handleCloseForm} contentClassName="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{formType === "AR" ? "Terima Pembayaran (AR)" : "Bayar Tagihan (AP)"}</DialogTitle>
+          <DialogTitle>{formType === "AR" ? `Terima Pembayaran (AR) ${selectedRef ? `- ${selectedRef}` : ""}` : `Bayar Tagihan (AP) ${selectedRef ? `- ${selectedRef}` : ""}`}</DialogTitle>
         </DialogHeader>
         <DialogContent className="pt-4">
           {formType === "AR" ? (

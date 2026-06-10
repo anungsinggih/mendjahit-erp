@@ -744,6 +744,8 @@ export type PurchaseDetailData = {
     ap_status?: string
     payment_id?: string
     payment_amount?: number
+    ap_payments?: Array<{ id: string; payment_date: string; amount: number; payment_no: string | null }>
+    dp_journals?: Array<{ id: string; journal_date: string; amount: number }>
   }
   inventoryHistory: {
     item_id: string | null
@@ -853,6 +855,19 @@ async function fetchPurchaseDetailData(purchaseId: string): Promise<PurchaseDeta
 
     await Promise.all(relatedPromises)
 
+    // AP Payments (if has ap_bill_id)
+    if (relatedDocs.ap_bill_id) {
+      const { data: payData } = await supabase
+        .from("payments")
+        .select("id, payment_date, amount, payment_no")
+        .eq("ref_type", "ap_bill")
+        .eq("ref_id", relatedDocs.ap_bill_id)
+        .order("payment_date", { ascending: false });
+      if (payData) {
+        relatedDocs.ap_payments = payData;
+      }
+    }
+
     // Inventory history (if no journal but has purchase_no)
     if (!relatedDocs.journal_id && purchaseData.purchase_no) {
       const { data: invData, error: invError } = await supabase
@@ -879,6 +894,27 @@ async function fetchPurchaseDetailData(purchaseId: string): Promise<PurchaseDeta
         }
       }
     }
+  }
+
+  // Down Payments (DP) can exist even for DRAFTs
+  const { data: dpData } = await supabase
+    .from("journals")
+    .select(`
+      id,
+      journal_date,
+      journal_lines (
+        debit
+      )
+    `)
+    .eq("ref_type", "PURCHASE_DP")
+    .eq("ref_id", purchaseId);
+
+  if (dpData) {
+    relatedDocs.dp_journals = dpData.map(j => ({
+      id: j.id,
+      journal_date: j.journal_date,
+      amount: (j.journal_lines as unknown as { debit: number }[]).reduce((sum, l) => sum + Number(l.debit || 0), 0)
+    }));
   }
 
   return {

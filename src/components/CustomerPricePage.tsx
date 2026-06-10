@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
+import { PageHeader } from "./ui/PageHeader";
 import { Input } from "./ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -241,22 +242,28 @@ export default function CustomerPricePage() {
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Harga Khusus</h2>
-          <div className="mt-1">
-            <CustomerBadge name={customerName || "Customer"} customerType={customerType} />
+      <PageHeader
+        title="Harga Khusus"
+        description="Set custom pricing for specific items for this customer. Prices here will override default item prices."
+        breadcrumbs={[
+          { label: "Customers", href: "/customers" },
+          { label: "Special Prices" }
+        ]}
+        actions={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button variant="outline" onClick={() => navigate("/customers")}>
+              <Icons.ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <Button onClick={handleSave} disabled={saving || dirtyCount === 0}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
           </div>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button variant="outline" onClick={() => navigate("/customers")}>
-            <Icons.ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
-          <Button onClick={handleSave} disabled={saving || dirtyCount === 0}>
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
+        }
+      />
+
+      <div className="-mt-4 mb-4">
+        <CustomerBadge name={customerName || "Customer"} customerType={customerType} />
       </div>
 
       <Card>

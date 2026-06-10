@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PurchaseReturnForm } from './PurchaseReturnForm';
 import { PageHeader } from './ui/PageHeader';
+import { Alert } from './ui/Alert';
 
 export default function PurchaseReturn() {
     const [error, setError] = useState<string | null>(null)
@@ -28,10 +29,10 @@ export default function PurchaseReturn() {
                 ]}
             />
 
-            {error && <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md shadow-sm">Error: {error}</div>}
-            {success && <div className="p-4 bg-green-50 text-green-700 border border-green-200 rounded-md shadow-sm">Success: {success}</div>}
+            <div className="max-w-6xl mx-auto space-y-4">
+                {error && <Alert variant="error" title="Error" description={error} />}
+                {success && <Alert variant="success" title="Success" description={success} />}
 
-            <div className="max-w-6xl mx-auto">
                 <PurchaseReturnForm onSuccess={handleSuccess} onError={handleError} />
             </div>
         </div>

@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, toNumber } from '../lib/format'
 import { getErrorMessage } from '../lib/errors'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { ResponsiveTable } from './ui/ResponsiveTable'
+import { PageHeader } from './ui/PageHeader'
 
 type JournalEntry = {
     id: string
@@ -318,31 +319,27 @@ export default function Journals() {
 
     return (
         <div className="w-full max-w-6xl mx-auto space-y-6 px-3 sm:px-4 lg:px-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
-                    Journal Entries
-                    {isFetching && !isLoading && (
-                        <span className="ml-3 inline-block align-middle">
-                            <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block"></div>
-                        </span>
-                    )}
-                </h2>
-                <div className="flex gap-2">
-                    <Button
-                        onClick={() => refetch()}
-                        variant="outline"
-                        size="icon"
-                        icon={<Icons.Refresh className="w-4 h-4" />}
-                        title="Refresh"
-                    />
-                    <Button
-                        onClick={() => navigate('/journals/manual')}
-                        icon={<Icons.Edit className="w-4 h-4" />}
-                    >
-                        Add Journal
-                    </Button>
-                </div>
-            </div>
+            <PageHeader
+                title="Journal Entries"
+                description="View all accounting transactions and double-entry book-keeping records."
+                actions={
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => refetch()}
+                            variant="outline"
+                            size="icon"
+                            icon={<Icons.Refresh className={`w-4 h-4 ${isFetching && !isLoading ? 'animate-spin' : ''}`} />}
+                            title="Refresh"
+                        />
+                        <Button
+                            onClick={() => navigate('/journals/manual')}
+                            icon={<Icons.Edit className="w-4 h-4" />}
+                        >
+                            Add Journal
+                        </Button>
+                    </div>
+                }
+            />
 
             {fetchErrorMessage && (
                 <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-center gap-2">

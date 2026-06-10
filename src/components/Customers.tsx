@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
+import { PageHeader } from './ui/PageHeader'
 import { useConfirm } from './ui/ConfirmDialogContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import CustomerForm, { type Customer } from './CustomerForm'
@@ -96,11 +97,14 @@ export default function Customers() {
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
 
     return (
-        <div className="w-full space-y-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="hidden md:block text-2xl font-bold tracking-tight">Customers Management</h2>
-                <Button onClick={handleAddCustomer} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">Add Customer</Button>
-            </div>
+        <div className="w-full max-w-7xl mx-auto space-y-6">
+            <PageHeader
+                title="Customers"
+                description="Manage your customer database, view outstanding balances, and transaction history."
+                actions={
+                    <Button onClick={handleAddCustomer} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">Add Customer</Button>
+                }
+            />
 
             {fetchErrorMessage && (
                 <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2">

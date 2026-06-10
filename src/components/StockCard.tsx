@@ -39,7 +39,13 @@ type StockCardRow = {
     created_at?: string
 }
 
-export default function StockCard({ itemId }: { itemId?: string | null }) {
+export default function StockCard({ 
+    itemId,
+    onSetOpeningStock
+}: { 
+    itemId?: string | null;
+    onSetOpeningStock?: (id: string, name: string) => void;
+}) {
     const [loading, setLoading] = useState(false)
     const [allItems, setAllItems] = useState<DisplayItem[]>([]) // For client-side pagination (ItemCard)
     const [itemName, setItemName] = useState("")
@@ -266,7 +272,13 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => navigate('/opening-stock', { state: { itemId } })}
+                                onClick={() => {
+                                    if (onSetOpeningStock) {
+                                        onSetOpeningStock(itemId, itemName)
+                                    } else {
+                                        navigate('/opening-stock', { state: { itemId } })
+                                    }
+                                }}
                                 icon={<Icons.Plus className="w-4 h-4" />}
                                 className="bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200"
                             >

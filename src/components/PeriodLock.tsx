@@ -19,6 +19,7 @@ import { getErrorMessage } from "../lib/errors";
 import { StatusBadge } from "./ui/StatusBadge";
 import { formatCurrency } from "../lib/format";
 import { useConfirm } from "./ui/ConfirmDialogContext";
+import { PageHeader } from "./ui/PageHeader";
 
 type Period = {
   id: string;
@@ -862,9 +863,10 @@ export default function PeriodLock() {
 
   return (
     <div className="w-full space-y-8">
-      <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
-        Period Management
-      </h2>
+      <PageHeader
+        title="Period Management"
+        description="Open new accounting periods, close current periods, and export financial reports."
+      />
 
       {error && <Alert variant="error" title="Kesalahan" description={error} />}
       {success && (

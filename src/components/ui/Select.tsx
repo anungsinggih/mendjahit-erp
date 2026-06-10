@@ -1,6 +1,22 @@
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { CheckIcon, ChevronDownIcon, MagnifyingGlassIcon } from '@radix-ui/react-icons'
 import React, { useState, useMemo, useRef, useEffect } from 'react'
+
+// Inline SVG icons to avoid bundling @radix-ui/react-icons
+const CheckIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+const ChevronDownIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+)
+const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+)
 
 type SelectOption = {
     label: string
@@ -143,7 +159,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
                 </button>
 
                 {mobileOpen && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
+                    <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 p-4">
                         <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
                             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
                                 <div className="text-sm font-semibold text-[var(--text-main)]">

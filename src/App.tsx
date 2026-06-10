@@ -118,7 +118,7 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div
       key={location.pathname}
-      className="animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both"
+      className="animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both max-w-[1600px] mx-auto"
     >
       {children}
     </div>
@@ -278,7 +278,9 @@ function App() {
                   <img
                     src="/logo.png"
                     alt="Mendjahit"
-                    className="h-8 w-auto rounded"
+                    width="32"
+                    height="32"
+                    className="h-8 w-8 rounded object-contain"
                   />
                   <span className="hidden sm:inline">Mendjahit</span>
                   <span className="sm:hidden">Mendjahit</span>
@@ -293,7 +295,7 @@ function App() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+            <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2 min-h-0">
               {/* Dashboard */}
               <div className="px-2">
                 <SidebarLink to="/" icon={Icons.Chart} end={true}>
@@ -366,7 +368,7 @@ function App() {
 
             {/* User Profile Footer */}
             {session && (
-              <div className="border-t border-slate-800 bg-slate-900 relative">
+              <div className="shrink-0 border-t border-slate-800 bg-slate-900 relative">
                 <button
                   onClick={() => setUserMenuOpen((prev) => !prev)}
                   className="w-full p-4 hover:bg-slate-800 transition-colors group text-left"
