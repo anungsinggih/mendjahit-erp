@@ -68,7 +68,7 @@ export const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(({
             </PopoverPrimitive.Trigger>
             <PopoverPrimitive.Portal>
                 <PopoverPrimitive.Content
-                    className="w-[var(--radix-popover-trigger-width)] p-0 z-[200] bg-white rounded-md border border-gray-200 shadow-xl overflow-hidden"
+                    className="w-[var(--radix-popover-trigger-width)] md:min-w-[400px] lg:min-w-[500px] p-0 z-[200] bg-white rounded-md border border-gray-200 shadow-xl overflow-hidden"
                     align="start"
                 >
                     <Command className="h-full w-full overflow-hidden bg-popover text-popover-foreground">
@@ -118,7 +118,7 @@ export const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(({
 
     if (label) {
         return (
-            <div className={cn("flex flex-col gap-1.5 mb-3 w-full", containerClassName)}>
+            <div className={cn("flex flex-col gap-1.5 mb-3 w-full min-w-0", containerClassName)}>
                 <label className="text-sm font-medium text-[var(--text-main)] shadow-sm">{label}</label>
                 {ComboboxComponent}
             </div>
@@ -127,7 +127,7 @@ export const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(({
 
     if (containerClassName) {
         return (
-            <div className={containerClassName}>
+            <div className={cn("w-full min-w-0", containerClassName)}>
                 {ComboboxComponent}
             </div>
         )

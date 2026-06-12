@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
+import { QuantityInput } from "./ui/QuantityInput";
 import { ButtonSelect } from "./ui/ButtonSelect";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
@@ -14,6 +15,7 @@ import { TotalFooter } from "./ui/TotalFooter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import VendorForm from "./VendorForm";
 import { Combobox } from "./ui/Combobox";
+import { Badge } from "./ui/Badge";
 import { logger } from "../lib/logger";
 
 type Vendor = {
@@ -76,7 +78,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     const [selectedItemId, setSelectedItemId] = useState("");
     const [costPrice, setCostPrice] = useState<number | null>(null);
     const [qty, setQty] = useState(1);
-    const [itemFilter, setItemFilter] = useState<"ALL" | keyof typeof ITEM_TYPES>("ALL");
+    const [itemFilter, setItemFilter] = useState<keyof typeof ITEM_TYPES>(ITEM_TYPES.RAW_MATERIAL);
 
     const costInputRef = useRef<HTMLInputElement>(null);
 
@@ -285,20 +287,26 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         return Math.max(1, parsed);
     };
 
+    const incrementQty = () => {
+        setQty(prev => Math.max(1, prev + 1));
+    };
+
+    const decrementQty = () => {
+        setQty(prev => Math.max(1, prev - 1));
+    };
+
     const parseCostValue = (value: string) => {
         const parsed = parseFloat(value);
         if (isNaN(parsed)) return 0;
         return Math.max(0, parsed);
     };
 
-    // Purchase engine supports all item types from SUPPLIER:
-    // RAW_MATERIAL, TRADED, FINISHED_GOOD.
+    // Purchase engine supports RAW_MATERIAL and TRADED items from SUPPLIER.
+    // FINISHED_GOOD items are handled by the Makloon module (separate feature).
     // Cost is required (>0) for all line items regardless of type.
-    const allowedItemTypes: Array<"ALL" | keyof typeof ITEM_TYPES> = [
-        "ALL",
+    const allowedItemTypes: Array<keyof typeof ITEM_TYPES> = [
         ITEM_TYPES.RAW_MATERIAL,
         ITEM_TYPES.TRADED,
-        ITEM_TYPES.FINISHED_GOOD,
     ];
 
     function addItem() {
@@ -621,7 +629,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                     Add Items
                                 </h4>
                                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
-                                    <div className="flex-grow">
+                                    <div className="flex-grow min-w-0">
                                         <div className="flex flex-col gap-1.5 mb-1">
                                             <div className="flex justify-between items-center">
                                                 <label className="text-sm font-medium text-[var(--text-main)]">Product</label>
@@ -640,7 +648,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                                                 : "text-gray-400 hover:text-gray-600"
                                                                 }`}
                                                         >
-                                                            {type === ITEM_TYPES.RAW_MATERIAL ? "RAW" : type === ITEM_TYPES.FINISHED_GOOD ? "FG" : type}
+                                                            {type === ITEM_TYPES.RAW_MATERIAL ? "RAW" : type === ITEM_TYPES.TRADED ? "TRADED" : type}
                                                         </button>
                                                     ))}
                                                 </div>
@@ -665,7 +673,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                             placeholder="Select Item..."
                                             searchPlaceholder="Search SKU or Name..."
                                             options={items
-                                                .filter(i => itemFilter === "ALL" ? true : i.type === itemFilter)
+                                                .filter(i => i.type === itemFilter)
                                                 .map((i) => {
                                                     const size = i.size_name;
                                                     const color = i.color_name;
@@ -677,8 +685,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                                         value: i.id,
                                                         keywords: [i.sku, i.name],
                                                         content: (
-                                                            <div className="flex justify-between w-full">
-                                                                <span>
+                                                            <div className="flex justify-between w-full items-center gap-2">
+                                                                <div className="truncate">
                                                                     <span className="font-mono text-gray-500 mr-2">{i.sku}</span>
                                                                     {i.name}
                                                                     {variantLabel && (
@@ -686,10 +694,13 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                                                             ({variantLabel})
                                                                         </span>
                                                                     )}
-                                                                </span>
-                                                                <span className={`text-xs ${Number(stockQty) <= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                                                    Stock: {stockQty}
-                                                                </span>
+                                                                </div>
+                                                                <Badge
+                                                                    variant={Number(stockQty) <= 0 ? 'destructive' : Number(stockQty) <= 5 ? 'warning' : 'success'}
+                                                                    className="flex-shrink-0"
+                                                                >
+                                                                    Stok: {stockQty}
+                                                                </Badge>
                                                             </div>
                                                         )
                                                     };
@@ -697,8 +708,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                             className="!mb-0"
                                         />
                                     </div>
-                                    <div className="w-28">
-                                        <Input
+                                    <div className="w-32 min-w-[8rem]">
+                                        <QuantityInput
                                             label="Qty"
                                             type="number"
                                             inputMode="numeric"
@@ -713,10 +724,12 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                                     addItem();
                                                 }
                                             }}
+                                            onIncrement={incrementQty}
+                                            onDecrement={decrementQty}
                                             containerClassName="!mb-0"
                                         />
                                     </div>
-                                    <div className="w-36">
+                                    <div className="w-32 min-w-[8rem]">
                                         <Input
                                             ref={costInputRef}
                                             label="Cost Price"
@@ -739,7 +752,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                             containerClassName="!mb-0"
                                         />
                                     </div>
-                                    <div className="">
+                                    <div className="min-w-[6rem]">
                                         <Button
                                             type="button"
                                             onClick={addItem}
