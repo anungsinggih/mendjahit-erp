@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, memo } from 'react'
+import { useMemo, memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -6,9 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
 import { type Vendor } from './VendorForm'
-import { useDebounce } from '../hooks/useDebounce'
-import { usePagination } from '../hooks/usePagination'
 import { Pagination } from './ui/Pagination'
+import { ResponsiveTable } from './ui/ResponsiveTable'
+import { useWorkspaceSearchParams } from '../hooks/useWorkspaceSearchParams'
 
 interface VendorListProps {
     vendors: Vendor[]
@@ -21,27 +21,23 @@ interface VendorListProps {
 }
 
 function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurchase, onPrefetch }: VendorListProps) {
-    const [searchTerm, setSearchTerm] = useState('')
-    const debouncedSearch = useDebounce(searchTerm, 500)
+    const { searchParams, setSearchParams } = useWorkspaceSearchParams()
+    const searchTerm = searchParams.get('q') || ''
+    const page = Math.max(1, Number(searchParams.get('page') || '1'))
+    const pageSize = 15
 
     const filteredVendors = useMemo(() => (
         vendors.filter(v =>
-            v.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-            (v.phone && v.phone.includes(debouncedSearch)) ||
-            (v.address && v.address.toLowerCase().includes(debouncedSearch.toLowerCase()))
+            v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (v.phone && v.phone.includes(searchTerm)) ||
+            (v.address && v.address.toLowerCase().includes(searchTerm.toLowerCase()))
         )
-    ), [vendors, debouncedSearch])
+    ), [vendors, searchTerm])
 
-    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 15 })
-
-    useEffect(() => {
-        setPage(1)
-    }, [debouncedSearch, setPage])
-
-    const pagedVendors = useMemo(
-        () => filteredVendors.slice(range[0], range[1] + 1),
-        [filteredVendors, range]
-    )
+    const pagedVendors = useMemo(() => {
+        const start = (page - 1) * pageSize
+        return filteredVendors.slice(start, start + pageSize)
+    }, [filteredVendors, page, pageSize])
 
     const getTypeLabel = (type?: Vendor['vendor_type']) => {
         switch (type) {
@@ -63,14 +59,14 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
                     <Input
                         placeholder="Search vendors..."
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
+                        onChange={e => setSearchParams({ q: e.target.value, page: 1 })}
                         className="h-9 mb-0"
                         containerClassName="!mb-0"
                     />
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <ResponsiveTable minWidth="760px">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -86,7 +82,7 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
                             {loading ? <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow> : pagedVendors.map(v => (
                                 <TableRow
                                     key={v.id}
-                                    className={!v.is_active ? 'bg-gray-100 opacity-60' : ''}
+                                    className={`${!v.is_active ? 'bg-gray-100 opacity-60' : ''} cursor-pointer hover:bg-slate-50`}
                                     onClick={() => onView(v)}
                                     onMouseEnter={() => onPrefetch?.(v.id)}
                                 >
@@ -146,12 +142,12 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
                             ))}
                         </TableBody>
                     </Table>
-                </div>
+                </ResponsiveTable>
                 <Pagination
                     currentPage={page}
                     totalCount={filteredVendors.length}
                     pageSize={pageSize}
-                    onPageChange={setPage}
+                    onPageChange={(nextPage) => setSearchParams({ page: nextPage })}
                     isLoading={loading}
                 />
             </CardContent>

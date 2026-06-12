@@ -9,6 +9,7 @@ import { Badge } from "./ui/Badge";
 import { Icons } from "./ui/Icons";
 import { PageHeader } from "./ui/PageHeader";
 import { EmptyState } from "./ui/EmptyState";
+import { ResponsiveTable } from "./ui/ResponsiveTable";
 import { formatCurrency, formatDate } from "../lib/format";
 import { useRouteModal } from "../hooks/useRouteModal";
 import { TransactionOverlayShell } from "./ui/TransactionOverlayShell";
@@ -114,8 +115,8 @@ export default function MakloonOrderList() {
     <div className="w-full space-y-6 pb-20">
       <PageHeader
         title="Makloon Orders"
-        description="Kelola work order ke vendor konveksi."
-        breadcrumbs={[{ label: "Makloon", href: "/makloon" }]}
+        description="Manage subcontract work orders and production handoff flows."
+        breadcrumbs={[{ label: "Makloon", href: "/makloon/orders" }]}
         actions={
           <Button onClick={() => openModal({ modal: 'makloon.create' })} icon={<Icons.Plus className="w-4 h-4" />}>
             New Makloon Order
@@ -126,9 +127,9 @@ export default function MakloonOrderList() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
           <div className="flex items-center gap-4">
-            <CardTitle>Daftar Order ({filtered.length})</CardTitle>
+            <CardTitle>Order List ({filtered.length})</CardTitle>
             <Input
-              placeholder="Cari No / Vendor..."
+              placeholder="Search order no. or vendor..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               containerClassName="!mb-0 w-64"
@@ -146,13 +147,13 @@ export default function MakloonOrderList() {
                 }
               }}
             >
-              <option value="">Semua Status</option>
+              <option value="">All Statuses</option>
               <option value="DRAFT">Draft</option>
-              <option value="ISSUED">Dikonfirmasi</option>
-              <option value="IN_PRODUCTION">Produksi</option>
-              <option value="COMPLETED">Selesai</option>
-              <option value="CANCELLED">Dibatalkan</option>
-              <option value="DRAFT,ISSUED">Draft & Konfirmasi</option>
+              <option value="ISSUED">Confirmed</option>
+              <option value="IN_PRODUCTION">In Production</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="DRAFT,ISSUED">Draft & Confirmed</option>
             </select>
           </div>
         </CardHeader>
@@ -162,21 +163,21 @@ export default function MakloonOrderList() {
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={<Icons.FileText className="w-5 h-5" />}
-              title="Belum ada makloon order"
-              description="Buat order baru untuk memulai proses makloon"
+              title="No makloon orders yet"
+              description="Create new order to start subcontract workflow"
             />
           ) : (
-            <div className="overflow-x-auto">
+            <ResponsiveTable minWidth="840px">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tanggal</TableHead>
-                    <TableHead>No Order</TableHead>
-                    <TableHead>Vendor Konveksi</TableHead>
-                    <TableHead>Target Selesai</TableHead>
-                    <TableHead className="text-right">Estimasi Jasa</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Order No.</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Target Completion</TableHead>
+                    <TableHead className="text-right">Estimated Service Cost</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Aksi</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -204,7 +205,7 @@ export default function MakloonOrderList() {
                               variant="outline"
                               onClick={() => openModal({ modal: 'makloon.issue.create', values: { parentId: o.id } })}
                               icon={<Icons.Package className="w-4 h-4 text-orange-600" />}
-                              title="Kirim Bahan"
+                              title="Issue Materials"
                             />
                           )}
                           {o.status === "IN_PRODUCTION" && (
@@ -213,7 +214,7 @@ export default function MakloonOrderList() {
                               variant="outline"
                               onClick={() => openModal({ modal: 'makloon.receipt.create', values: { parentId: o.id } })}
                               icon={<Icons.Check className="w-4 h-4 text-green-600" />}
-                              title="Terima FG"
+                              title="Receive Finished Goods"
                             />
                           )}
                           <Button
@@ -229,7 +230,7 @@ export default function MakloonOrderList() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

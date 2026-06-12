@@ -10,15 +10,17 @@ import { useConfirm } from './ui/ConfirmDialogContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import ItemForm from './ItemForm'
 import { ItemImportDialog } from './ItemImportDialog'
+import ItemDetail from './ItemDetail'
 import VendorItemManager from './VendorItemManager'
-import { usePagination } from '../hooks/usePagination'
-import { useDebounce } from '../hooks/useDebounce'
 import { Pagination } from './ui/Pagination'
 import { PageHeader } from './ui/PageHeader'
 import { Section } from './ui/Section'
 import { ResponsiveTable } from './ui/ResponsiveTable'
 import { getErrorMessage } from '../lib/errors'
-import { useItemsQuery } from '../hooks/useQueries'
+import { itemQueryKeys, prefetchItemDetail, useItemsQuery, useQueryClient } from '../hooks/useQueries'
+import { useWorkspaceSearchParams } from '../hooks/useWorkspaceSearchParams'
+import { useRouteModal } from '../hooks/useRouteModal'
+import { WorkspaceOverlayShell } from './ui/WorkspaceOverlayShell'
 // xlsx is loaded dynamically only when export is triggered
 
 import type { Item } from "../types/shared";
@@ -33,6 +35,8 @@ function formatItemPrice(value: unknown) {
 
 type ItemRowProps = {
     item: Item
+    onOpen?: (id: string) => void
+    onPrefetch?: (id: string) => void
     onEdit: (item: Item) => void
     onDelete: (id: string) => void
     onOpenVendorItems?: (item: Item) => void
@@ -41,13 +45,14 @@ type ItemRowProps = {
     onToggleSelect: (id: string) => void
 }
 
-const ItemRow = memo(({ item, onEdit, onDelete, onOpenVendorItems, isSelected, isSelectable, onToggleSelect }: ItemRowProps) => (
-    <TableRow className="hover:bg-slate-50/80 transition-colors">
+const ItemRow = memo(({ item, onOpen, onPrefetch, onEdit, onDelete, onOpenVendorItems, isSelected, isSelectable, onToggleSelect }: ItemRowProps) => (
+    <TableRow className="group cursor-pointer hover:bg-slate-50/80 transition-colors" onClick={() => onOpen?.(item.id)} onMouseEnter={() => onPrefetch?.(item.id)}>
         <TableCell className="w-12">
             <input
                 type="checkbox"
                 checked={isSelected}
                 disabled={!isSelectable}
+                onClick={(e) => e.stopPropagation()}
                 onChange={() => onToggleSelect(item.id)}
                 aria-label={`Select ${item.name}`}
                 className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
@@ -97,7 +102,7 @@ const ItemRow = memo(({ item, onEdit, onDelete, onOpenVendorItems, isSelected, i
                     variant="ghost"
                     onClick={(e) => { e.stopPropagation(); onOpenVendorItems(item) }}
                     className="h-9 w-9 p-0 text-slate-400 hover:text-amber-600"
-                    title="Supplier HPP"
+                    title="Supplier Cost"
                 >
                     <Icons.Tag className="w-[18px] h-[18px]" />
                 </Button>
@@ -105,7 +110,7 @@ const ItemRow = memo(({ item, onEdit, onDelete, onOpenVendorItems, isSelected, i
                 <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => onEdit(item)}
+                    onClick={(e) => { e.stopPropagation(); onEdit(item) }}
                     className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
                     title="Edit Item"
                 >
@@ -114,7 +119,7 @@ const ItemRow = memo(({ item, onEdit, onDelete, onOpenVendorItems, isSelected, i
                 <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => onDelete(item.id)}
+                    onClick={(e) => { e.stopPropagation(); onDelete(item.id) }}
                     className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600"
                 >
                     <Icons.Trash className="w-[22px] h-[22px]" />
@@ -128,14 +133,13 @@ ItemRow.displayName = 'ItemRow'
 
 export default function Items() {
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
+    const { confirm } = useConfirm()
+    const { searchParams, setSearchParams } = useWorkspaceSearchParams()
+    const { isOpen, modal, id, openModal, replaceModal, closeModal } = useRouteModal()
 
-    // Form State
-    const [editingItem, setEditingItem] = useState<Item | null>(null)
-    const [isModalOpen, setIsModalOpen] = useState(false)
-    const [isImportOpen, setIsImportOpen] = useState(false)
     const [vendorItemItemId, setVendorItemItemId] = useState<string | null>(null)
     const [vendorItemItemName, setVendorItemItemName] = useState('')
-    const { confirm } = useConfirm()
     const [isExporting, setIsExporting] = useState(false)
     const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
     const [isBatchPriceModalOpen, setIsBatchPriceModalOpen] = useState(false)
@@ -143,22 +147,24 @@ export default function Items() {
     const [batchPriceError, setBatchPriceError] = useState<string | null>(null)
     const [isBatchSaving, setIsBatchSaving] = useState(false)
 
-    const [searchTerm, setSearchTerm] = useState('')
-    const debouncedSearchTerm = useDebounce(searchTerm, 300)
-    const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
-
-    const { page, setPage, pageSize } = usePagination();
+    const searchTerm = searchParams.get('q') || ''
+    const rawTypeFilter = searchParams.get('type') || 'all'
+    const typeFilter = (['all', ...Object.values(ITEM_TYPES)] as string[]).includes(rawTypeFilter)
+        ? rawTypeFilter as ItemType | 'all'
+        : 'all'
+    const page = Math.max(1, Number(searchParams.get('page') || '1'))
+    const pageSize = 15
     const { data: allItems, isLoading, isFetching, error: fetchError, refetch } = useItemsQuery({ typeFilter })
 
     // Client-side search + pagination
     const filteredItems = useMemo(() => {
-        if (!debouncedSearchTerm.trim()) return allItems ?? []
-        const term = debouncedSearchTerm.toLowerCase()
+        if (!searchTerm.trim()) return allItems ?? []
+        const term = searchTerm.toLowerCase()
         return (allItems ?? []).filter(item =>
             item.name?.toLowerCase().includes(term) ||
             item.sku?.toLowerCase().includes(term)
         )
-    }, [allItems, debouncedSearchTerm])
+    }, [allItems, searchTerm])
 
     const totalCount = filteredItems.length
     const paginatedItems = useMemo(() => {
@@ -168,8 +174,11 @@ export default function Items() {
 
     // Reset page when filters change
     useEffect(() => {
-        setPage(1)
-    }, [debouncedSearchTerm, typeFilter, setPage])
+        const maxPage = Math.max(1, Math.ceil(filteredItems.length / pageSize))
+        if (page > maxPage) {
+            setSearchParams({ page: maxPage })
+        }
+    }, [filteredItems.length, page, pageSize, setSearchParams])
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
     const isBatchPriceEligible = (item: Item) =>
@@ -189,6 +198,27 @@ export default function Items() {
     const allEligibleVisibleSelected =
         eligibleVisibleIds.length > 0 &&
         eligibleVisibleIds.every(id => selectedItemIds.includes(id))
+    const selectedItem = useMemo(
+        () => (allItems ?? []).find(item => item.id === id) ?? null,
+        [allItems, id],
+    )
+    const overlayTitle = modal === 'item.edit'
+        ? 'Edit Item'
+        : modal === 'item.detail'
+            ? 'Item Detail'
+            : modal === 'item.import'
+                ? 'Import Items'
+                : 'New Item'
+    const overlayDescription = modal === 'item.import'
+        ? 'Upload spreadsheet file and preview item data before import.'
+        : modal === 'item.detail'
+            ? 'Review item pricing, attributes, and bill of materials.'
+            : 'Manage item master data without leaving workspace.'
+    const overlaySize = modal === 'item.import'
+        ? 'wide'
+        : modal === 'item.detail'
+            ? 'wide'
+            : 'xwide'
 
     useEffect(() => {
         const visibleEligibleIds = new Set(eligibleVisibleIds)
@@ -202,6 +232,10 @@ export default function Items() {
         setVendorItemItemId(item.id)
         setVendorItemItemName(item.name)
     }, [])
+
+    const handlePrefetch = useCallback((itemId: string) => {
+        prefetchItemDetail(queryClient, itemId)
+    }, [queryClient])
 
     const handleExportXlsx = useCallback(async () => {
         setIsExporting(true)
@@ -231,8 +265,8 @@ export default function Items() {
                 Size: item.size?.code || item.size?.name || "",
                 Color: item.color?.code || item.color?.name || "",
                 Type: item.type,
-                Price_Umum: Number(item.price_default || 0),
-                Price_Khusus: Number(item.price_khusus || 0),
+                Price_Default: Number(item.price_default || 0),
+                Price_Special: Number(item.price_khusus || 0),
                 Active: item.is_active ? "YES" : "NO",
             }))
 
@@ -270,27 +304,29 @@ export default function Items() {
     }, [confirm, filteredItems])
 
 
-    function handleSuccess() {
-        setEditingItem(null)
-        setIsModalOpen(false)
-        refetch()
-    }
+    const handleSuccess = useCallback(async (savedId: string) => {
+        await refetch()
+        queryClient.invalidateQueries({ queryKey: itemQueryKeys.all })
+        queryClient.invalidateQueries({ queryKey: itemQueryKeys.detailRoot })
+        replaceModal({ modal: 'item.detail', values: { id: savedId } })
+    }, [queryClient, refetch, replaceModal])
 
     const handleEdit = useCallback((item: Item) => {
-        // Shared item has type: string, but component might expect specific union for editing logic
-        // We can cast or just pass it as is if Form accepts string or Item
-        setEditingItem(item)
-        setIsModalOpen(true)
-    }, [])
+        openModal({ modal: 'item.edit', values: { id: item.id } })
+    }, [openModal])
 
-    function handleAddItem() {
-        setEditingItem(null)
-        setIsModalOpen(true)
-    }
+    const handleAddItem = useCallback(() => {
+        openModal({ modal: 'item.create' })
+    }, [openModal])
 
-    function handleImportSuccess() {
-        refetch()
-    }
+    const handleOpenDetail = useCallback((itemId: string) => {
+        openModal({ modal: 'item.detail', values: { id: itemId } })
+    }, [openModal])
+
+    const handleImportSuccess = useCallback(async () => {
+        await refetch()
+        queryClient.invalidateQueries({ queryKey: itemQueryKeys.all })
+    }, [queryClient, refetch])
 
     const handleToggleItemSelection = useCallback((id: string) => {
         setSelectedItemIds(prev =>
@@ -329,7 +365,7 @@ export default function Items() {
     const handleBatchPriceSave = useCallback(async () => {
         const nextPrice = Number(batchPriceValue)
         if (batchPriceValue.trim() === '' || Number.isNaN(nextPrice) || nextPrice < 0) {
-            setBatchPriceError('Enter a valid Price (Umum) value.')
+            setBatchPriceError('Enter a valid Default Price value.')
             return
         }
 
@@ -352,18 +388,19 @@ export default function Items() {
             setIsBatchPriceModalOpen(false)
             setSelectedItemIds([])
             await refetch()
+            queryClient.invalidateQueries({ queryKey: itemQueryKeys.all })
             await confirm({
                 title: "Batch Update Success",
-                description: `Updated Price (Umum) for ${selectedEligibleItems.length} items to ${nextPrice.toLocaleString('id-ID')}.`,
+                description: `Updated Default Price for ${selectedEligibleItems.length} items to ${nextPrice.toLocaleString('id-ID')}.`,
                 confirmText: "OK",
                 hideCancel: true,
             })
         } catch (err) {
-            setBatchPriceError(getErrorMessage(err, 'Failed to update Price (Umum).'))
+            setBatchPriceError(getErrorMessage(err, 'Failed to update Default Price.'))
         } finally {
             setIsBatchSaving(false)
         }
-    }, [batchPriceValue, confirm, refetch, selectedEligibleItems])
+    }, [batchPriceValue, confirm, queryClient, refetch, selectedEligibleItems])
 
     const handleDelete = useCallback(async (id: string) => {
         const ok = await confirm({
@@ -383,13 +420,17 @@ export default function Items() {
                 hideCancel: true,
             })
         }
-        else refetch()
-    }, [confirm, refetch])
+        else {
+            await refetch()
+            queryClient.invalidateQueries({ queryKey: itemQueryKeys.all })
+            queryClient.invalidateQueries({ queryKey: itemQueryKeys.detail(id) })
+        }
+    }, [confirm, queryClient, refetch])
 
     return (
         <div className="w-full space-y-6 pb-20">
             <PageHeader
-                title="Items Management"
+                title="Items"
                 description="Manage your product inventory, master data, and pricing."
                 breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Items" }]}
                 actions={
@@ -404,7 +445,7 @@ export default function Items() {
                             Export XLSX
                         </Button>
                         <Button
-                            onClick={() => setIsImportOpen(true)}
+                            onClick={() => openModal({ modal: 'item.import' })}
                             variant="outline"
                             icon={<Icons.Upload className="w-4 h-4" />}
                             className="w-auto"
@@ -416,7 +457,7 @@ export default function Items() {
                             icon={<Icons.Plus className="w-4 h-4" />}
                             className="bg-indigo-600 hover:bg-indigo-700 w-auto"
                         >
-                            Add Item
+                            New Item
                         </Button>
                     </div>
                 }
@@ -431,7 +472,7 @@ export default function Items() {
             )}
 
             <Section
-                title={`Item List (${totalCount})`}
+                title={`Item Catalog (${totalCount})`}
                 description="View and filter all registered items."
                 className="min-h-[500px]"
                 action={
@@ -452,7 +493,7 @@ export default function Items() {
                             onClick={handleOpenBatchPriceModal}
                             disabled={selectedEligibleItems.length === 0}
                         >
-                            Batch Update Price
+                            Batch Update Default Price
                         </Button>
                         <Button
                             variant="outline"
@@ -480,7 +521,7 @@ export default function Items() {
                             <Input
                                 placeholder="Search by name or SKU..."
                                 value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
+                                onChange={e => setSearchParams({ q: e.target.value, page: 1 })}
                                 className="pl-9"
                                 containerClassName="!mb-0"
                             />
@@ -497,7 +538,7 @@ export default function Items() {
                                 <button
                                     key={tab.value}
                                     type="button"
-                                    onClick={() => setTypeFilter(tab.value)}
+                                    onClick={() => setSearchParams({ type: tab.value, page: 1 })}
                                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${typeFilter === tab.value ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
                                 >
                                     {tab.label}
@@ -508,7 +549,7 @@ export default function Items() {
 
                     <div className="flex flex-col gap-2 rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <span className="font-semibold">{selectedEligibleItems.length}</span> item selected for batch Price (Umum) update.
+                            <span className="font-semibold">{selectedEligibleItems.length}</span> item selected for batch default price update.
                         </div>
                         <div className="text-xs text-indigo-700">
                             Quick version only applies to item rows you check on this page, and skips RAW_MATERIAL.
@@ -534,8 +575,8 @@ export default function Items() {
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Size</TableHead>
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Color</TableHead>
                                     <TableHead className="text-xs uppercase tracking-wider text-slate-500">Type</TableHead>
-                                    <TableHead className="text-right text-xs uppercase tracking-wider text-slate-500">Price (Umum)</TableHead>
-                                    <TableHead className="text-right text-xs uppercase tracking-wider text-slate-500">Price (Khusus)</TableHead>
+                                    <TableHead className="text-right text-xs uppercase tracking-wider text-slate-500">Default Price</TableHead>
+                                    <TableHead className="text-right text-xs uppercase tracking-wider text-slate-500">Special Price</TableHead>
                                     <TableHead className="text-center text-xs uppercase tracking-wider text-slate-500">Active</TableHead>
                                     <TableHead className="text-right text-xs uppercase tracking-wider text-slate-500">Actions</TableHead>
                                 </TableRow>
@@ -561,6 +602,8 @@ export default function Items() {
                                         <ItemRow
                                             key={item.id}
                                             item={item}
+                                            onOpen={handleOpenDetail}
+                                            onPrefetch={handlePrefetch}
                                             onEdit={handleEdit}
                                             onDelete={handleDelete}
                                             onOpenVendorItems={handleOpenVendorItems}
@@ -580,7 +623,7 @@ export default function Items() {
                                 currentPage={page}
                                 totalCount={totalCount}
                                 pageSize={pageSize}
-                                onPageChange={setPage}
+                                onPageChange={(nextPage) => setSearchParams({ page: nextPage })}
                                 isLoading={loading}
                             />
                         </div>
@@ -588,18 +631,46 @@ export default function Items() {
                 </div>
             </Section>
 
-            <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-                <DialogHeader>
-                    <DialogTitle>{editingItem ? 'Edit Item' : 'New Item'}</DialogTitle>
-                </DialogHeader>
-                <DialogContent>
+            <WorkspaceOverlayShell
+                isOpen={isOpen}
+                onClose={closeModal}
+                title={overlayTitle}
+                description={overlayDescription}
+                size={overlaySize}
+            >
+                {modal === 'item.create' && (
                     <ItemForm
-                        existingItem={editingItem}
                         onSuccess={handleSuccess}
-                        onCancel={() => setIsModalOpen(false)}
+                        onCancel={closeModal}
                     />
-                </DialogContent>
-            </Dialog>
+                )}
+
+                {modal === 'item.edit' && id && (
+                    <ItemForm
+                        itemId={id}
+                        existingItem={selectedItem}
+                        onSuccess={handleSuccess}
+                        onCancel={closeModal}
+                    />
+                )}
+
+                {modal === 'item.detail' && id && (
+                    <ItemDetail
+                        itemId={id}
+                        embedded
+                        onClose={closeModal}
+                        onOpenEdit={(itemId) => replaceModal({ modal: 'item.edit', values: { id: itemId } })}
+                    />
+                )}
+
+                {modal === 'item.import' && (
+                    <ItemImportDialog
+                        embedded
+                        onClose={closeModal}
+                        onSuccess={handleImportSuccess}
+                    />
+                )}
+            </WorkspaceOverlayShell>
 
             <Dialog
                 isOpen={isBatchPriceModalOpen}
@@ -607,16 +678,16 @@ export default function Items() {
                 contentClassName="max-w-2xl"
             >
                 <DialogHeader>
-                    <DialogTitle>Batch Update Price (Umum)</DialogTitle>
+                    <DialogTitle>Batch Update Default Price</DialogTitle>
                 </DialogHeader>
                 <DialogContent>
                     <div className="space-y-4">
                         <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-900">
-                            Applying one Price (Umum) value to <span className="font-semibold">{selectedEligibleItems.length}</span> selected items on this page.
+                            Applying one default price value to <span className="font-semibold">{selectedEligibleItems.length}</span> selected items on this page.
                         </div>
 
                         <Input
-                            label="New Price (Umum)"
+                            label="New Default Price"
                             type="number"
                             inputMode="decimal"
                             min="0"
@@ -641,28 +712,30 @@ export default function Items() {
                                 Preview Selected Items
                             </div>
                             <div className="max-h-72 overflow-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="sticky top-0 bg-white">
-                                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
-                                            <th className="px-4 py-2">SKU</th>
-                                            <th className="px-4 py-2">Name</th>
-                                            <th className="px-4 py-2 text-right">Current</th>
-                                            <th className="px-4 py-2 text-right">New</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {selectedEligibleItems.map(item => (
-                                            <tr key={item.id} className="border-b border-slate-100 last:border-b-0">
-                                                <td className="px-4 py-2 font-mono text-xs text-slate-600">{item.sku}</td>
-                                                <td className="px-4 py-2 text-slate-800">{item.name}</td>
-                                                <td className="px-4 py-2 text-right text-slate-600">{Number(item.price_default || 0).toLocaleString('id-ID')}</td>
-                                                <td className="px-4 py-2 text-right font-semibold text-indigo-700">
-                                                    {batchPriceValue.trim() === '' ? '-' : Number(batchPriceValue || 0).toLocaleString('id-ID')}
-                                                </td>
+                                <ResponsiveTable minWidth="560px">
+                                    <table className="w-full text-sm">
+                                        <thead className="sticky top-0 bg-white">
+                                            <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wider text-slate-500">
+                                                <th className="px-4 py-2">SKU</th>
+                                                <th className="px-4 py-2">Name</th>
+                                                <th className="px-4 py-2 text-right">Current</th>
+                                                <th className="px-4 py-2 text-right">New</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {selectedEligibleItems.map(item => (
+                                                <tr key={item.id} className="border-b border-slate-100 last:border-b-0">
+                                                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{item.sku}</td>
+                                                    <td className="px-4 py-2 text-slate-800">{item.name}</td>
+                                                    <td className="px-4 py-2 text-right text-slate-600">{Number(item.price_default || 0).toLocaleString('id-ID')}</td>
+                                                    <td className="px-4 py-2 text-right font-semibold text-indigo-700">
+                                                        {batchPriceValue.trim() === '' ? '-' : Number(batchPriceValue || 0).toLocaleString('id-ID')}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </ResponsiveTable>
                             </div>
                         </div>
 
@@ -691,12 +764,6 @@ export default function Items() {
                 itemId={vendorItemItemId || ''}
                 itemName={vendorItemItemName}
                 onSaved={() => {}}
-            />
-
-            <ItemImportDialog
-                isOpen={isImportOpen}
-                onClose={() => setIsImportOpen(false)}
-                onSuccess={handleImportSuccess}
             />
         </div>
     )

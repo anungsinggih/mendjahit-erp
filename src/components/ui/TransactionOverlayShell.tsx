@@ -10,6 +10,7 @@ type TransactionOverlayShellProps = {
   title: string
   onClose: () => void
   size?: OverlaySize
+  description?: string
   children: React.ReactNode
 }
 
@@ -24,6 +25,7 @@ export function TransactionOverlayShell({
   title,
   onClose,
   size = 'wide',
+  description,
   children,
 }: TransactionOverlayShellProps) {
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -39,8 +41,9 @@ export function TransactionOverlayShell({
         contentClassName="w-full max-w-full border-l-0"
       >
         <div className="flex h-full flex-col bg-white">
-          <div className="border-b border-slate-200 pb-4 pr-12">
+          <div className="sticky top-0 z-10 border-b border-slate-200 bg-white pb-4 pr-12">
             <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+            {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pt-4">
             {children}
@@ -58,8 +61,13 @@ export function TransactionOverlayShell({
     >
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
+        {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
       </DialogHeader>
       <DialogContent className="max-h-[calc(92vh-88px)]">{children}</DialogContent>
     </Dialog>
   )
 }
+
+export const WorkspaceOverlayShell = TransactionOverlayShell
+
+export type WorkspaceOverlayShellProps = TransactionOverlayShellProps

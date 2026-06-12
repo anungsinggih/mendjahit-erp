@@ -1,78 +1,126 @@
-import { useNavigate, useParams } from "react-router-dom";
-import { useVendorDetailQuery } from "../hooks/useQueries";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
-import { Button } from "./ui/Button";
-import { PageHeader } from "./ui/PageHeader";
-import { Badge } from "./ui/Badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
-import { Alert } from "./ui/Alert";
-import { Icons } from "./ui/Icons";
-import { formatCurrency } from "../lib/format";
-import { getErrorMessage } from "../lib/errors";
+import { useNavigate, useParams } from 'react-router-dom'
+import { useVendorDetailQuery } from '../hooks/useQueries'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
+import { Button } from './ui/Button'
+import { PageHeader } from './ui/PageHeader'
+import { Badge } from './ui/Badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
+import { Alert } from './ui/Alert'
+import { Icons } from './ui/Icons'
+import { ResponsiveTable } from './ui/ResponsiveTable'
+import { formatCurrency } from '../lib/format'
+import { getErrorMessage } from '../lib/errors'
 
-type VendorType = "SUPPLIER" | "KONVEKSI" | "INTERNAL" | null | undefined;
+type VendorType = 'SUPPLIER' | 'KONVEKSI' | 'INTERNAL' | null | undefined
+
+type VendorDetailProps = {
+  vendorId?: string
+  embedded?: boolean
+  onClose?: () => void
+  onOpenEdit?: (id: string) => void
+}
 
 const getTypeLabel = (type?: VendorType) => {
   switch (type) {
-    case "KONVEKSI":
-      return "Konveksi";
-    case "INTERNAL":
-      return "Internal";
-    case "SUPPLIER":
+    case 'KONVEKSI':
+      return 'Konveksi'
+    case 'INTERNAL':
+      return 'Internal'
+    case 'SUPPLIER':
     default:
-      return "Supplier";
+      return 'Supplier'
   }
-};
+}
 
-export default function VendorDetail() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+export default function VendorDetail({ vendorId, embedded = false, onClose, onOpenEdit }: VendorDetailProps) {
+  const params = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const resolvedId = vendorId || params.id
 
-  const { data: detailData, isLoading: loading, error: fetchError } = useVendorDetailQuery(id);
+  const { data: detailData, isLoading: loading, error: fetchError } = useVendorDetailQuery(resolvedId)
 
-  const vendor = detailData?.vendor ?? null;
-  const purchases = detailData?.purchases ?? [];
-  const lifetimeValue = detailData?.lifetimeValue ?? 0;
-  const outstanding = detailData?.outstanding ?? null;
-  const error = fetchError ? getErrorMessage(fetchError) : null;
+  const vendor = detailData?.vendor ?? null
+  const purchases = detailData?.purchases ?? []
+  const lifetimeValue = detailData?.lifetimeValue ?? 0
+  const outstanding = detailData?.outstanding ?? null
+  const error = fetchError ? getErrorMessage(fetchError) : null
 
-  if (!id) {
-    return <Alert variant="error" title="Error" description="Vendor ID not found." />;
+  if (!resolvedId) {
+    return <Alert variant="error" title="Error" description="Vendor ID not found." />
   }
+
+  const handleBack = () => {
+    if (onClose) {
+      onClose()
+      return
+    }
+    navigate('/vendors')
+  }
+
+  const handleEdit = () => {
+    if (onOpenEdit) {
+      onOpenEdit(resolvedId)
+      return
+    }
+    navigate(`/vendors/${resolvedId}/edit`)
+  }
+
+  const actionButtons = (
+    <>
+      {!embedded && (
+        <Button variant="outline" onClick={handleBack}>
+          Back
+        </Button>
+      )}
+      <Button variant="outline" onClick={handleEdit} disabled={loading || !vendor}>
+        Edit
+      </Button>
+      <Button onClick={() => navigate(`/purchases?vendor=${resolvedId}`)} icon={<Icons.Cart className="w-4 h-4" />}>
+        New Purchase
+      </Button>
+    </>
+  )
+
+  const metaBadges = vendor ? (
+    <>
+      <Badge variant={vendor.is_active ? 'success' : 'secondary'}>
+        {vendor.is_active ? 'Active' : 'Inactive'}
+      </Badge>
+      <Badge variant="outline">{getTypeLabel(vendor.vendor_type)}</Badge>
+    </>
+  ) : null
 
   return (
     <div className="w-full space-y-6">
-      <PageHeader
-        title={vendor?.name || "Vendor Detail"}
-        description={vendor ? `Profile and transaction history for ${vendor.name}.` : "View vendor details and recent activity."}
-        breadcrumbs={[
-          { label: "Vendors", href: "/vendors" },
-          { label: "Detail" }
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate("/vendors")}>
-              Back
-            </Button>
-            <Button onClick={() => navigate(`/purchases?vendor=${id}`)} icon={<Icons.Cart className="w-4 h-4" />}>
-              Create Purchase
-            </Button>
+      {embedded ? (
+        <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">{vendor?.name || 'Vendor Detail'}</h2>
+              <p className="text-sm text-slate-600">
+                {vendor ? `Profile and transaction history for ${vendor.name}.` : 'View vendor details and recent activity.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">{metaBadges}</div>
           </div>
-        }
-      />
-
-      {vendor && (
-        <div className="flex items-center gap-2 -mt-4 mb-4">
-          <Badge variant={vendor.is_active ? "success" : "secondary"}>
-            {vendor.is_active ? "Active" : "Inactive"}
-          </Badge>
-          <Badge variant="outline">{getTypeLabel(vendor.vendor_type)}</Badge>
+          <div className="flex flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">{actionButtons}</div>
         </div>
+      ) : (
+        <PageHeader
+          title={vendor?.name || 'Vendor Detail'}
+          description={vendor ? `Profile and transaction history for ${vendor.name}.` : 'View vendor details and recent activity.'}
+          breadcrumbs={[
+            { label: 'Vendors', href: '/vendors' },
+            { label: 'Detail' },
+          ]}
+          meta={metaBadges}
+          actions={actionButtons}
+        />
       )}
 
       {error && <Alert variant="error" title="Error" description={error} />}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Lifetime Purchases</div>
@@ -83,7 +131,7 @@ export default function VendorDetail() {
           <CardContent className="p-4">
             <div className="text-sm text-gray-500">Outstanding AP</div>
             <div className="text-2xl font-semibold">
-              {outstanding === null ? "-" : formatCurrency(outstanding)}
+              {outstanding === null ? '-' : formatCurrency(outstanding)}
             </div>
           </CardContent>
         </Card>
@@ -103,10 +151,10 @@ export default function VendorDetail() {
           {loading ? (
             <div>Loading...</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
               <div>
                 <div className="text-gray-500">Phone</div>
-                <div className="font-medium">{vendor?.phone || "-"}</div>
+                <div className="font-medium">{vendor?.phone || '-'}</div>
               </div>
               <div>
                 <div className="text-gray-500">Type</div>
@@ -114,7 +162,7 @@ export default function VendorDetail() {
               </div>
               <div>
                 <div className="text-gray-500">Address</div>
-                <div className="font-medium">{vendor?.address || "-"}</div>
+                <div className="font-medium">{vendor?.address || '-'}</div>
               </div>
             </div>
           )}
@@ -126,7 +174,7 @@ export default function VendorDetail() {
           <CardTitle>Recent Purchases</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <ResponsiveTable minWidth="640px">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -151,9 +199,9 @@ export default function VendorDetail() {
                       onClick={() => navigate(`/purchases/${row.id}`)}
                     >
                       <TableCell className="font-medium">{row.purchase_no || row.id}</TableCell>
-                      <TableCell>{row.purchase_date || "-"}</TableCell>
+                      <TableCell>{row.purchase_date || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant={row.status === "POSTED" ? "success" : "secondary"}>
+                        <Badge variant={row.status === 'POSTED' ? 'success' : 'secondary'}>
                           {row.status}
                         </Badge>
                       </TableCell>
@@ -163,9 +211,9 @@ export default function VendorDetail() {
                 )}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTable>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

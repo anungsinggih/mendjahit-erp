@@ -190,9 +190,9 @@ export default function Finance() {
       .order("code", { ascending: true });
 
     if (error) {
-      setMethodError("Gagal memuat metode pembayaran; gunakan default CASH/BANK.");
+      setMethodError("Failed to load payment methods; using default CASH/BANK options.");
       setPaymentMethods([
-        { code: "CASH", name: "Kas (Default)" },
+        { code: "CASH", name: "Cash (Default)" },
         { code: "BANK", name: "Bank (Default)" },
       ]);
     } else {
@@ -356,7 +356,7 @@ export default function Finance() {
       {methodError && (
         <Alert variant="warning" title="Metode pembayaran" description={methodError} />
       )}
-      {error && <Alert variant="error" title="Kesalahan" description={error} />}
+      {error && <Alert variant="error" title="Error" description={error} />}
       {success && (
         <Alert variant="success" title="Berhasil" description={success} />
       )}
@@ -414,7 +414,7 @@ export default function Finance() {
         isOpen={modal === "finance.receipt" || modal === "finance.payment"}
         onClose={handleCloseForm}
         size="narrow"
-        title={formType === "AR" ? `Terima Pembayaran (AR) ${selectedRef ? `- ${selectedRef}` : ""}` : `Bayar Tagihan (AP) ${selectedRef ? `- ${selectedRef}` : ""}`}
+        title={formType === "AR" ? `Receive Payment (AR) ${selectedRef ? `- ${selectedRef}` : ""}` : `Pay Bill (AP) ${selectedRef ? `- ${selectedRef}` : ""}`}
       >
           {formType === "AR" ? (
             <FinanceReceiptForm

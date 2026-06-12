@@ -20,10 +20,7 @@ import Login from "./components/Login";
 
 // Lazy load all page components
 const Customers = lazy(() => import("./components/Customers"));
-const CustomerDetail = lazy(() => import("./components/CustomerDetail"));
 const Vendors = lazy(() => import("./components/Vendors"));
-const VendorDetail = lazy(() => import("./components/VendorDetail"));
-const CustomerPricePage = lazy(() => import("./components/CustomerPricePage"));
 const COA = lazy(() => import("./components/COA"));
 const OpeningBalance = lazy(() => import("./components/OpeningBalance"));
 const SalesHistory = lazy(() => import("./components/SalesHistory"));
@@ -117,7 +114,7 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 }
 
 function NotAuthorized({
-  message = "Anda tidak memiliki akses ke halaman ini.",
+  message = "You do not have access to this page.",
 }: {
   message?: string;
 }) {
@@ -307,7 +304,7 @@ function App() {
                   </SidebarLink>
                 </div>
                 <div className="px-2">
-                  <SidebarLink to="/makloon" icon={Icons.Factory}>
+                  <SidebarLink to="/makloon/orders" icon={Icons.Factory}>
                     Makloon
                   </SidebarLink>
                 </div>
@@ -452,13 +449,15 @@ function App() {
                 <PageWrapper>
                   <Routes>
                     <Route path="/customers" element={<Customers />} />
-                    <Route path="/customers/:id" element={<CustomerDetail />} />
+                    <Route path="/customers/:id" element={<RouteOverlayRedirect to="/customers" modal="customer.detail" valueParams={{ id: "id" }} />} />
+                    <Route path="/customers/:id/edit" element={<RouteOverlayRedirect to="/customers" modal="customer.edit" valueParams={{ id: "id" }} />} />
                     <Route
                       path="/customers/:id/pricing"
-                      element={<CustomerPricePage />}
+                      element={<RouteOverlayRedirect to="/customers" modal="customer.pricing" valueParams={{ id: "id" }} />}
                     />
                     <Route path="/vendors" element={<Vendors />} />
-                    <Route path="/vendors/:id" element={<VendorDetail />} />
+                    <Route path="/vendors/:id" element={<RouteOverlayRedirect to="/vendors" modal="vendor.detail" valueParams={{ id: "id" }} />} />
+                    <Route path="/vendors/:id/edit" element={<RouteOverlayRedirect to="/vendors" modal="vendor.edit" valueParams={{ id: "id" }} />} />
                     <Route path="/coa" element={<COA />} />
                     <Route
                       path="/opening-balance"
@@ -466,7 +465,7 @@ function App() {
                         isOwner ? (
                           <OpeningBalance />
                         ) : (
-                          <NotAuthorized message="Halaman Opening Balance hanya untuk OWNER." />
+                          <NotAuthorized message="Opening Balance is available for OWNER only." />
                         )
                       }
                     />
@@ -550,6 +549,10 @@ function App() {
                       element={<BrandsCategories />}
                     />
                     <Route path="/items" element={<Items />} />
+                    <Route path="/items/new" element={<RouteOverlayRedirect to="/items" modal="item.create" />} />
+                    <Route path="/items/import" element={<RouteOverlayRedirect to="/items" modal="item.import" />} />
+                    <Route path="/items/:id" element={<RouteOverlayRedirect to="/items" modal="item.detail" valueParams={{ id: "id" }} />} />
+                    <Route path="/items/:id/edit" element={<RouteOverlayRedirect to="/items" modal="item.edit" valueParams={{ id: "id" }} />} />
                     <Route path="/makloon/*" element={<Makloon />} />
                     {/* DEV ONLY Route */}
                     {isLocalhost && (

@@ -20,7 +20,7 @@ export type Vendor = SharedVendor
 
 interface VendorFormProps {
     initialData?: Vendor | null
-    onSuccess: () => void
+    onSuccess: (id: string) => void
     onCancel: () => void
 }
 
@@ -59,6 +59,8 @@ export default function VendorForm({ initialData, onSuccess, onCancel }: VendorF
         setLoading(true)
 
         try {
+            let savedId = initialData?.id
+
             if (initialData?.id) {
                 const { error } = await supabase
                     .from('vendors')
@@ -66,13 +68,18 @@ export default function VendorForm({ initialData, onSuccess, onCancel }: VendorF
                     .eq('id', initialData.id)
                 if (error) throw error
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('vendors')
                     .insert([validation.data])
+                    .select('id')
+                    .single()
                 if (error) throw error
+                savedId = data.id
             }
 
-            onSuccess()
+            if (!savedId) throw new Error('Vendor save did not return id')
+
+            onSuccess(savedId)
         } catch (err: unknown) {
             if (err instanceof Error) setError(err.message)
             else setError('An unknown error occurred')

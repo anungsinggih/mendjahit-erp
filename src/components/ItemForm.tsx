@@ -41,7 +41,8 @@ type SelectWithAddProps = {
 
 interface ItemFormProps {
     existingItem?: Item | null
-    onSuccess: () => void
+    itemId?: string
+    onSuccess: (id: string) => void
     onCancel: () => void
 }
 
@@ -54,7 +55,7 @@ function normalizeText(value: string | null | undefined) {
     return value?.trim() || ''
 }
 
-export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemFormProps) {
+export default function ItemForm({ existingItem, itemId, onSuccess, onCancel }: ItemFormProps) {
     const [uoms, setUoms] = useState<MasterData[]>([])
     const [sizes, setSizes] = useState<MasterData[]>([])
     const [colors, setColors] = useState<MasterData[]>([])
@@ -62,6 +63,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
     const [categories, setCategories] = useState<MasterData[]>([])
     const [rawMaterials, setRawMaterials] = useState<MasterData[]>([])
     const [loading, setLoading] = useState(false)
+    const [itemLoading, setItemLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [bomItems, setBomItems] = useState<BomItem[]>([])
     const [bomLoading, setBomLoading] = useState(false)
@@ -83,7 +85,52 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
     useEffect(() => {
         if (existingItem) {
             setFormData(existingItem)
-        } else if (uoms.length > 0) {
+            return
+        }
+
+        if (!itemId) {
+            setItemLoading(false)
+            return
+        }
+
+        let active = true
+
+        const fetchItem = async () => {
+            setItemLoading(true)
+            setError(null)
+
+            try {
+                const { data, error } = await supabase
+                    .from('items')
+                    .select('*')
+                    .eq('id', itemId)
+                    .single()
+
+                if (error) throw error
+                if (!active) return
+
+                setFormData(data as Partial<Item>)
+            } catch (err) {
+                if (!active) return
+                setError(getErrorMessage(err, 'Failed to load item'))
+            } finally {
+                if (active) setItemLoading(false)
+            }
+        }
+
+        void fetchItem()
+
+        return () => {
+            active = false
+        }
+    }, [existingItem, itemId])
+
+    useEffect(() => {
+        if (existingItem || itemId) {
+            return
+        }
+
+        if (uoms.length > 0) {
             // Set defaults for new item
             setFormData(prev => ({
                 ...prev,
@@ -92,7 +139,21 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 color_id: prev.color_id || colors.find(c => c.code === 'NA')?.id || colors[0]?.id
             }))
         }
-    }, [existingItem, uoms, sizes, colors])
+    }, [existingItem, itemId, uoms, sizes, colors])
+
+    useEffect(() => {
+        if (existingItem?.id && formData.type === ITEM_TYPES.FINISHED_GOOD) {
+            fetchBomData(existingItem.id)
+            return
+        }
+
+        if (itemId && formData.type === ITEM_TYPES.FINISHED_GOOD) {
+            fetchBomData(itemId)
+            return
+        }
+
+        setBomItems([])
+    }, [existingItem?.id, itemId, formData.type])
 
     useEffect(() => {
         if (formData.type === ITEM_TYPES.FINISHED_GOOD && formData.default_price_buy !== 0) {
@@ -102,14 +163,6 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
             setFormData(prev => ({ ...prev, price_default: 0, price_khusus: 0 }))
         }
     }, [formData.type, formData.default_price_buy, formData.price_default, formData.price_khusus])
-
-    useEffect(() => {
-        if (existingItem?.id && formData.type === ITEM_TYPES.FINISHED_GOOD) {
-            fetchBomData(existingItem.id)
-        } else {
-            setBomItems([])
-        }
-    }, [existingItem?.id, formData.type])
 
     async function fetchMasterData() {
         const [uomRes, sizeRes, colorRes, brandRes, categoryRes] = await Promise.all([
@@ -180,8 +233,8 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
             const normalizedDefaultPriceBuy = normalizeFiniteNumber(formData.default_price_buy)
             const normalizedMinStock = normalizeFiniteNumber(formData.min_stock, 0)
 
-            if (!normalizedSku) throw new Error('SKU wajib diisi.')
-            if (!normalizedName) throw new Error('Name wajib diisi.')
+            if (!normalizedSku) throw new Error('SKU is required.')
+            if (!normalizedName) throw new Error('Name is required.')
 
             if (normalizedPriceDefault < 0 || normalizedPriceKhusus < 0 || normalizedDefaultPriceBuy < 0 || normalizedMinStock < 0) {
                 throw new Error("Prices must be >= 0")
@@ -189,12 +242,12 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
 
             // Validation Logic
             if ((formData.type === ITEM_TYPES.FINISHED_GOOD || formData.type === ITEM_TYPES.TRADED)) {
-                if (normalizedPriceDefault <= 0) throw new Error("Harga Umum wajib diisi (> 0) untuk tipe ini.");
-                if (normalizedPriceKhusus <= 0) throw new Error("Harga Khusus wajib diisi (> 0) untuk tipe ini.");
+                if (normalizedPriceDefault <= 0) throw new Error("Default Price is required (> 0) for this item type.");
+                if (normalizedPriceKhusus <= 0) throw new Error("Special Price is required (> 0) for this item type.");
             }
 
             if ((formData.type === ITEM_TYPES.TRADED || formData.type === ITEM_TYPES.RAW_MATERIAL)) {
-                if (normalizedDefaultPriceBuy <= 0) throw new Error("Buy Price (Cost) wajib diisi (> 0) untuk tipe ini.");
+                if (normalizedDefaultPriceBuy <= 0) throw new Error("Buy Price (Cost) is required (> 0) for this item type.");
             }
 
             const selectedUom = uoms.find(u => u.id === formData.uom_id)
@@ -215,22 +268,25 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 uom: normalizeText(selectedUom?.code) || 'PCS'
             }
 
-            let itemId = existingItem?.id
-            if (existingItem?.id) {
-                const { error } = await supabase.from('items').update(payload).eq('id', existingItem.id)
+            let savedItemId = existingItem?.id || itemId
+            if (existingItem?.id || itemId) {
+                const targetId = existingItem?.id || itemId
+                const { error } = await supabase.from('items').update(payload).eq('id', targetId)
                 if (error) throw error
             } else {
                 const { data, error } = await supabase.from('items').insert([payload]).select('id').single()
                 if (error) throw error
-                itemId = data.id
+                savedItemId = data.id
             }
 
             // Save BOM if this is a finished good
-            if (formData.type === ITEM_TYPES.FINISHED_GOOD && itemId) {
-                await saveBom(itemId)
+            if (formData.type === ITEM_TYPES.FINISHED_GOOD && savedItemId) {
+                await saveBom(savedItemId)
             }
 
-            onSuccess()
+            if (!savedItemId) throw new Error('Item save did not return id')
+
+            onSuccess(savedItemId)
         } catch (err: unknown) {
             setError(getErrorMessage(err, 'Unknown error'))
         } finally {
@@ -341,6 +397,12 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
             <form onSubmit={handleSubmit} className="space-y-4">
                 {error && <div className="text-red-600 text-sm bg-red-50 p-2 rounded">{error}</div>}
 
+                {itemLoading && (
+                    <div className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                        Loading item...
+                    </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                     <Input label="SKU" value={formData.sku} onChange={e => setFormData({ ...formData, sku: e.target.value })} required />
                     <Select
@@ -405,7 +467,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
                     <Input
-                        label={`Harga Umum${(formData.type === ITEM_TYPES.FINISHED_GOOD || formData.type === ITEM_TYPES.TRADED) ? ' *' : ''}`}
+                        label={`Default Price${(formData.type === ITEM_TYPES.FINISHED_GOOD || formData.type === ITEM_TYPES.TRADED) ? ' *' : ''}`}
                         type="number"
                         step="0.01"
                         value={formData.price_default === 0 ? "" : formData.price_default}
@@ -416,7 +478,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                         disabled={formData.type === ITEM_TYPES.RAW_MATERIAL}
                     />
                     <Input
-                        label={`Harga Khusus${(formData.type === ITEM_TYPES.FINISHED_GOOD || formData.type === ITEM_TYPES.TRADED) ? ' *' : ''}`}
+                        label={`Special Price${(formData.type === ITEM_TYPES.FINISHED_GOOD || formData.type === ITEM_TYPES.TRADED) ? ' *' : ''}`}
                         type="number"
                         step="0.01"
                         value={formData.price_khusus === 0 ? "" : formData.price_khusus}
@@ -453,7 +515,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 {formData.type === ITEM_TYPES.FINISHED_GOOD && (
                     <>
                         <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-4">
-                            Untuk FINISHED_GOOD, HPP otomatis 0 (HPP dihitung periodik saat closing).
+                            Finished Goods always use `0` buy price here. Cost is calculated during period closing.
                         </div>
 
                         <div className="border-t pt-4 mt-4">
@@ -528,10 +590,10 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 <Checkbox label="Active" checked={formData.is_active} onChange={e => setFormData({ ...formData, is_active: e.target.checked })} />
 
                 <div className="flex space-x-2 pt-2">
-                    <Button type="submit" disabled={loading} className="w-full sm:w-auto min-h-[44px]">
-                        {existingItem ? 'Update' : 'Add'} Item
+                    <Button type="submit" disabled={loading || itemLoading} className="w-full sm:w-auto min-h-[44px]">
+                        {existingItem || itemId ? 'Update' : 'Add'} Item
                     </Button>
-                    <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">Cancel</Button>
+                    <Button type="button" variant="secondary" onClick={onCancel} disabled={loading} className="w-full sm:w-auto">Cancel</Button>
                 </div>
             </form>
 

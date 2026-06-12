@@ -20,7 +20,7 @@ export type Customer = SharedCustomer
 
 interface CustomerFormProps {
     initialData?: Customer | null
-    onSuccess: () => void
+    onSuccess: (id: string) => void
     onCancel: () => void
 }
 
@@ -59,6 +59,8 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
         setLoading(true)
 
         try {
+            let savedId = initialData?.id
+
             if (initialData?.id) {
                 const { error } = await supabase
                     .from('customers')
@@ -66,13 +68,18 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
                     .eq('id', initialData.id)
                 if (error) throw error
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('customers')
                     .insert([validation.data])
+                    .select('id')
+                    .single()
                 if (error) throw error
+                savedId = data.id
             }
 
-            onSuccess()
+            if (!savedId) throw new Error('Customer save did not return id')
+
+            onSuccess(savedId)
         } catch (err: unknown) {
             if (err instanceof Error) setError(err.message)
             else setError('An unknown error occurred')
@@ -94,8 +101,8 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
                 value={formData.customer_type}
                 onChange={e => setFormData({ ...formData, customer_type: e.target.value as 'UMUM' | 'KHUSUS' | 'CUSTOM' })}
                 options={[
-                    { label: 'Umum', value: 'UMUM' },
-                    { label: 'Khusus', value: 'KHUSUS' },
+                    { label: 'General', value: 'UMUM' },
+                    { label: 'Special', value: 'KHUSUS' },
                     { label: 'Custom', value: 'CUSTOM' }
                 ]}
             />

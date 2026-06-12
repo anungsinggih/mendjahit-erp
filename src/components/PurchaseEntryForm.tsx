@@ -169,10 +169,11 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     }, [onError]);
 
     // Vendor Modal Handlers
-    const handleVendorCreated = async () => {
+    const handleVendorCreated = async (savedVendorId: string) => {
         setIsVendorModalOpen(false);
         onSuccess("Vendor created successfully!");
         await fetchMasterData();
+        setVendorId(savedVendorId);
     };
 
     const handleVendorUpdated = async () => {

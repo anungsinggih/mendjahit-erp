@@ -1,24 +1,24 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { PageHeader } from './ui/PageHeader'
 import { useConfirm } from './ui/ConfirmDialogContext'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import VendorList from './VendorList'
 import VendorForm, { type Vendor } from './VendorForm'
 import { getErrorMessage } from '../lib/errors'
 import { formatCurrency } from '../lib/format'
 import { useNavigate } from 'react-router-dom'
 import { vendorQueryKeys, useVendorsQuery, useVendorOutstandingQuery, prefetchVendorDetail, useQueryClient } from '../hooks/useQueries'
+import { useRouteModal } from '../hooks/useRouteModal'
+import { WorkspaceOverlayShell } from './ui/WorkspaceOverlayShell'
+import VendorDetail from './VendorDetail'
 
 export default function Vendors() {
     const navigate = useNavigate()
     const { confirm } = useConfirm()
     const queryClient = useQueryClient()
-
-    const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
-    const [isModalOpen, setIsModalOpen] = useState(false)
+    const { isOpen, modal, id, openModal, replaceModal, closeModal } = useRouteModal()
 
     const { data: vendors = [], isLoading, isFetching, error: fetchError, refetch } = useVendorsQuery()
 
@@ -34,29 +34,26 @@ export default function Vendors() {
         }
     }, [vendors, outstanding, statsError])
 
-    const handleSuccess = useCallback(() => {
-        setEditingVendor(null)
-        setIsModalOpen(false)
+    const handleSuccess = useCallback((savedId: string) => {
         refetch()
         refetchOutstanding()
         queryClient.invalidateQueries({ queryKey: vendorQueryKeys.all })
         queryClient.invalidateQueries({ queryKey: vendorQueryKeys.outstanding })
         queryClient.invalidateQueries({ queryKey: vendorQueryKeys.detailRoot })
-    }, [refetch, refetchOutstanding, queryClient])
+        replaceModal({ modal: 'vendor.detail', values: { id: savedId } })
+    }, [refetch, refetchOutstanding, queryClient, replaceModal])
 
     const handleAddVendor = useCallback(() => {
-        setEditingVendor(null)
-        setIsModalOpen(true)
-    }, [])
+        openModal({ modal: 'vendor.create' })
+    }, [openModal])
 
     const handleEdit = useCallback((vendor: Vendor) => {
-        setEditingVendor(vendor)
-        setIsModalOpen(true)
-    }, [])
+        openModal({ modal: 'vendor.edit', values: { id: vendor.id } })
+    }, [openModal])
 
     const handleView = useCallback((vendor: Vendor) => {
-        navigate(`/vendors/${vendor.id}`)
-    }, [navigate])
+        openModal({ modal: 'vendor.detail', values: { id: vendor.id } })
+    }, [openModal])
 
     const handlePrefetch = useCallback((id: string) => {
         prefetchVendorDetail(queryClient, id)
@@ -95,6 +92,18 @@ export default function Vendors() {
 
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
+    const selectedVendor = useMemo(
+        () => vendors.find((vendor) => vendor.id === id) ?? null,
+        [vendors, id],
+    )
+
+    const overlayTitle = modal === 'vendor.edit'
+        ? 'Edit Vendor'
+        : modal === 'vendor.detail'
+            ? 'Vendor Detail'
+            : 'New Vendor'
+
+    const overlaySize = modal === 'vendor.detail' ? 'wide' : 'narrow'
 
     return (
         <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -102,7 +111,7 @@ export default function Vendors() {
                 title="Vendors"
                 description="Manage your supplier database, track outstanding payables, and purchase history."
                 actions={
-                    <Button onClick={handleAddVendor} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">Add Vendor</Button>
+                    <Button onClick={handleAddVendor} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">New Vendor</Button>
                 }
             />
 
@@ -163,18 +172,44 @@ export default function Vendors() {
                 onPrefetch={handlePrefetch}
             />
 
-            <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-                <DialogHeader>
-                    <DialogTitle>{editingVendor ? 'Edit Vendor' : 'New Vendor'}</DialogTitle>
-                </DialogHeader>
-                <DialogContent>
+            <WorkspaceOverlayShell
+                isOpen={isOpen}
+                onClose={closeModal}
+                title={overlayTitle}
+                size={overlaySize}
+            >
+                {modal === 'vendor.create' && (
                     <VendorForm
-                        initialData={editingVendor}
                         onSuccess={handleSuccess}
-                        onCancel={() => setIsModalOpen(false)}
+                        onCancel={closeModal}
                     />
-                </DialogContent>
-            </Dialog>
+                )}
+
+                {modal === 'vendor.edit' && id && (
+                    selectedVendor ? (
+                        <VendorForm
+                            initialData={selectedVendor}
+                            onSuccess={handleSuccess}
+                            onCancel={closeModal}
+                        />
+                    ) : loading ? (
+                        <div className="py-8 text-center text-sm text-slate-500">Loading vendor...</div>
+                    ) : (
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            Vendor not found.
+                        </div>
+                    )
+                )}
+
+                {modal === 'vendor.detail' && id && (
+                    <VendorDetail
+                        vendorId={id}
+                        embedded
+                        onClose={closeModal}
+                        onOpenEdit={(vendorId) => replaceModal({ modal: 'vendor.edit', values: { id: vendorId } })}
+                    />
+                )}
+            </WorkspaceOverlayShell>
         </div >
     )
 }

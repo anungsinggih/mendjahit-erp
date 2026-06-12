@@ -1,24 +1,25 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { PageHeader } from './ui/PageHeader'
 import { useConfirm } from './ui/ConfirmDialogContext'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import CustomerForm, { type Customer } from './CustomerForm'
 import CustomerList from './CustomerList'
 import { useNavigate } from 'react-router-dom'
 import { getErrorMessage } from '../lib/errors'
 import { formatCurrency } from '../lib/format'
 import { customerQueryKeys, useCustomersQuery, useCustomerOutstandingQuery, prefetchCustomerDetail, useQueryClient } from '../hooks/useQueries'
+import { useRouteModal } from '../hooks/useRouteModal'
+import { WorkspaceOverlayShell } from './ui/WorkspaceOverlayShell'
+import CustomerDetail from './CustomerDetail'
+import CustomerPricePage from './CustomerPricePage'
 
 export default function Customers() {
     const navigate = useNavigate()
     const { confirm } = useConfirm()
     const queryClient = useQueryClient()
-
-    const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
-    const [isModalOpen, setIsModalOpen] = useState(false)
+    const { isOpen, modal, id, openModal, replaceModal, closeModal } = useRouteModal()
 
     const { data: customers = [], isLoading, isFetching, error: fetchError, refetch } = useCustomersQuery()
 
@@ -34,33 +35,30 @@ export default function Customers() {
         }
     }, [customers, outstanding, statsError])
 
-    const handleSuccess = useCallback(() => {
-        setEditingCustomer(null)
-        setIsModalOpen(false)
+    const handleSuccess = useCallback((savedId: string) => {
         refetch()
         refetchOutstanding()
         queryClient.invalidateQueries({ queryKey: customerQueryKeys.all })
         queryClient.invalidateQueries({ queryKey: customerQueryKeys.outstanding })
         queryClient.invalidateQueries({ queryKey: customerQueryKeys.detailRoot })
-    }, [refetch, refetchOutstanding, queryClient])
+        replaceModal({ modal: 'customer.detail', values: { id: savedId } })
+    }, [refetch, refetchOutstanding, queryClient, replaceModal])
 
     const handleAddCustomer = useCallback(() => {
-        setEditingCustomer(null)
-        setIsModalOpen(true)
-    }, [])
+        openModal({ modal: 'customer.create' })
+    }, [openModal])
 
     const handleEdit = useCallback((customer: Customer) => {
-        setEditingCustomer(customer)
-        setIsModalOpen(true)
-    }, [])
+        openModal({ modal: 'customer.edit', values: { id: customer.id } })
+    }, [openModal])
 
     const handlePrices = useCallback((customer: Customer) => {
-        navigate(`/customers/${customer.id}/pricing`)
-    }, [navigate])
+        openModal({ modal: 'customer.pricing', values: { id: customer.id } })
+    }, [openModal])
 
     const handleView = useCallback((customer: Customer) => {
-        navigate(`/customers/${customer.id}`)
-    }, [navigate])
+        openModal({ modal: 'customer.detail', values: { id: customer.id } })
+    }, [openModal])
 
     const handlePrefetch = useCallback((id: string) => {
         prefetchCustomerDetail(queryClient, id)
@@ -99,6 +97,20 @@ export default function Customers() {
 
     const loading = isLoading || isFetching
     const fetchErrorMessage = fetchError ? getErrorMessage(fetchError) : null
+    const selectedCustomer = useMemo(
+        () => customers.find((customer) => customer.id === id) ?? null,
+        [customers, id],
+    )
+
+    const overlayTitle = modal === 'customer.edit'
+        ? 'Edit Customer'
+        : modal === 'customer.detail'
+            ? 'Customer Detail'
+            : modal === 'customer.pricing'
+                ? 'Customer Pricing'
+                : 'New Customer'
+
+    const overlaySize = modal === 'customer.detail' || modal === 'customer.pricing' ? 'wide' : 'narrow'
 
     return (
         <div className="w-full max-w-7xl mx-auto space-y-6">
@@ -106,7 +118,7 @@ export default function Customers() {
                 title="Customers"
                 description="Manage your customer database, view outstanding balances, and transaction history."
                 actions={
-                    <Button onClick={handleAddCustomer} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">Add Customer</Button>
+                    <Button onClick={handleAddCustomer} icon={<Icons.Plus className="w-4 h-4" />} className="w-full sm:w-auto">New Customer</Button>
                 }
             />
 
@@ -168,18 +180,52 @@ export default function Customers() {
                 onPrefetch={handlePrefetch}
             />
 
-            <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-                <DialogHeader>
-                    <DialogTitle>{editingCustomer ? 'Edit Customer' : 'New Customer'}</DialogTitle>
-                </DialogHeader>
-                <DialogContent>
+            <WorkspaceOverlayShell
+                isOpen={isOpen}
+                onClose={closeModal}
+                title={overlayTitle}
+                size={overlaySize}
+            >
+                {modal === 'customer.create' && (
                     <CustomerForm
-                        initialData={editingCustomer}
                         onSuccess={handleSuccess}
-                        onCancel={() => setIsModalOpen(false)}
+                        onCancel={closeModal}
                     />
-                </DialogContent>
-            </Dialog>
+                )}
+
+                {modal === 'customer.edit' && id && (
+                    selectedCustomer ? (
+                        <CustomerForm
+                            initialData={selectedCustomer}
+                            onSuccess={handleSuccess}
+                            onCancel={closeModal}
+                        />
+                    ) : loading ? (
+                        <div className="py-8 text-center text-sm text-slate-500">Loading customer...</div>
+                    ) : (
+                        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            Customer not found.
+                        </div>
+                    )
+                )}
+
+                {modal === 'customer.detail' && id && (
+                    <CustomerDetail
+                        customerId={id}
+                        embedded
+                        onClose={closeModal}
+                        onOpenEdit={(customerId) => replaceModal({ modal: 'customer.edit', values: { id: customerId } })}
+                        onOpenPricing={(customerId) => replaceModal({ modal: 'customer.pricing', values: { id: customerId } })}
+                    />
+                )}
+
+                {modal === 'customer.pricing' && id && (
+                    <CustomerPricePage
+                        customerId={id}
+                        embedded
+                    />
+                )}
+            </WorkspaceOverlayShell>
 
         </div >
     )

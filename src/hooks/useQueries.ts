@@ -33,6 +33,13 @@ export const vendorQueryKeys = {
   detail: (id: string | undefined) => ["vendor-detail", id] as const,
 }
 
+export const itemQueryKeys = {
+  all: ["items"] as const,
+  list: (typeFilter: string) => ["items", typeFilter] as const,
+  detailRoot: ["item-detail"] as const,
+  detail: (id: string | undefined) => ["item-detail", id] as const,
+}
+
 export const salesQueryKeys = {
   history: ["sales-history"] as const,
   detail: (id: string | undefined) => ["sales-detail", id] as const,
@@ -60,7 +67,7 @@ export function useItemsQuery(params: {
 }) {
   const { typeFilter } = params
   return useQuery({
-    queryKey: ["items", typeFilter],
+    queryKey: itemQueryKeys.list(typeFilter),
     queryFn: async () => {
       // Fetch ALL items for this typeFilter — client-side search handles filtering
       let query = supabase
@@ -116,6 +123,118 @@ export function useItemsQuery(params: {
     },
     staleTime: 30_000,
     placeholderData: keepPreviousData
+  })
+}
+
+async function fetchItemDetailData(itemId: string) {
+  const { data: itemData, error: itemError } = await supabase
+    .from("items")
+    .select(
+      `
+        *,
+        brand:brands(name),
+        category:categories(name),
+        uom_detail:uoms(name, code),
+        size:sizes(name, code),
+        color:colors(name, code)
+      `,
+    )
+    .eq("id", itemId)
+    .single()
+
+  if (itemError) throw itemError
+
+  const rawItem = itemData as Item & {
+    price_default?: unknown
+    price_khusus?: unknown
+    default_price_buy?: unknown
+    min_stock?: unknown
+    brand?: NamedRelation | NamedRelation[] | null
+    category?: NamedRelation | NamedRelation[] | null
+    uom_detail?: NamedCodeRelation | NamedCodeRelation[] | null
+    size?: NamedCodeRelation | NamedCodeRelation[] | null
+    color?: NamedCodeRelation | NamedCodeRelation[] | null
+  }
+
+  const item = {
+    ...rawItem,
+    price_default: toFiniteNumber(rawItem.price_default),
+    price_khusus: toFiniteNumber(rawItem.price_khusus),
+    default_price_buy: toFiniteNumber(rawItem.default_price_buy),
+    min_stock: toFiniteNumber(rawItem.min_stock),
+    is_active: rawItem.is_active ?? true,
+    brand: toSingleRelation(rawItem.brand),
+    category: toSingleRelation(rawItem.category),
+    uom_detail: toSingleRelation(rawItem.uom_detail),
+    size: toSingleRelation(rawItem.size),
+    color: toSingleRelation(rawItem.color),
+  } as Item
+
+  let bomItems: {
+    id: string
+    raw_material_id: string
+    qty_per_fg: number
+    raw_material?: {
+      id: string
+      sku: string
+      name: string
+      uom: string | null
+    }
+  }[] = []
+
+  if (item.type === "FINISHED_GOOD") {
+    const { data: bomData, error: bomError } = await supabase
+      .from("item_boms")
+      .select(
+        `
+          id,
+          raw_material_id,
+          qty_per_fg,
+          raw_material:items!item_boms_raw_material_id_fkey(id, sku, name, uom)
+        `,
+      )
+      .eq("finished_good_id", itemId)
+
+    if (bomError) throw bomError
+
+    bomItems = (bomData || []).map((row) => {
+      const rawMaterial = Array.isArray(row.raw_material)
+        ? row.raw_material[0]
+        : row.raw_material
+
+      return {
+        id: row.id,
+        raw_material_id: row.raw_material_id,
+        qty_per_fg: toFiniteNumber(row.qty_per_fg),
+        raw_material: rawMaterial
+          ? {
+            id: rawMaterial.id,
+            sku: rawMaterial.sku,
+            name: rawMaterial.name,
+            uom: rawMaterial.uom,
+          }
+          : undefined,
+      }
+    })
+  }
+
+  return { item, bomItems }
+}
+
+export function useItemDetailQuery(id: string | undefined) {
+  return useQuery({
+    queryKey: itemQueryKeys.detail(id),
+    queryFn: () => fetchItemDetailData(id!),
+    enabled: !!id,
+    staleTime: 30_000,
+  })
+}
+
+export function prefetchItemDetail(queryClient: QueryClient, id: string) {
+  return queryClient.prefetchQuery({
+    queryKey: itemQueryKeys.detail(id),
+    queryFn: () => fetchItemDetailData(id),
+    staleTime: 30_000,
   })
 }
 

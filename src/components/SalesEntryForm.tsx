@@ -280,19 +280,10 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         }
     }, [presetCustomerId, customerId]);
 
-    async function handleCustomerCreated() {
+    async function handleCustomerCreated(savedCustomerId: string) {
         setIsCustomerModalOpen(false);
         await fetchMasterData();
-        const { data, error } = await supabase
-            .from("customers")
-            .select("id")
-            .eq("is_active", true)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single();
-        if (!error && data?.id) {
-            setCustomerId(data.id);
-        }
+        setCustomerId(savedCustomerId);
     }
 
     async function handleCustomerUpdated() {

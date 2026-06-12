@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, memo } from 'react'
+import { useMemo, memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -7,9 +7,9 @@ import { Badge } from './ui/Badge'
 import { CustomerBadge } from './ui/CustomerBadge'
 import { Icons } from './ui/Icons'
 import { type Customer } from './CustomerForm'
-import { useDebounce } from '../hooks/useDebounce'
-import { usePagination } from '../hooks/usePagination'
 import { Pagination } from './ui/Pagination'
+import { ResponsiveTable } from './ui/ResponsiveTable'
+import { useWorkspaceSearchParams } from '../hooks/useWorkspaceSearchParams'
 
 interface CustomerListProps {
     customers: Customer[]
@@ -23,27 +23,23 @@ interface CustomerListProps {
 }
 
 function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, onCreateSale, onPrefetch }: CustomerListProps) {
-    const [searchTerm, setSearchTerm] = useState('')
-    const debouncedSearch = useDebounce(searchTerm, 500)
+    const { searchParams, setSearchParams } = useWorkspaceSearchParams()
+    const searchTerm = searchParams.get('q') || ''
+    const page = Math.max(1, Number(searchParams.get('page') || '1'))
+    const pageSize = 15
 
     const filteredCustomers = useMemo(() => (
         customers.filter(c =>
-            c.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-            (c.phone && c.phone.includes(debouncedSearch)) ||
-            (c.address && c.address.toLowerCase().includes(debouncedSearch.toLowerCase()))
+            c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.phone && c.phone.includes(searchTerm)) ||
+            (c.address && c.address.toLowerCase().includes(searchTerm.toLowerCase()))
         )
-    ), [customers, debouncedSearch])
+    ), [customers, searchTerm])
 
-    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 15 })
-
-    useEffect(() => {
-        setPage(1)
-    }, [debouncedSearch, setPage])
-
-    const pagedCustomers = useMemo(
-        () => filteredCustomers.slice(range[0], range[1] + 1),
-        [filteredCustomers, range]
-    )
+    const pagedCustomers = useMemo(() => {
+        const start = (page - 1) * pageSize
+        return filteredCustomers.slice(start, start + pageSize)
+    }, [filteredCustomers, page, pageSize])
 
     return (
         <Card>
@@ -53,14 +49,14 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                     <Input
                         placeholder="Search customers..."
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
+                        onChange={e => setSearchParams({ q: e.target.value, page: 1 })}
                         className="h-9 mb-0"
                         containerClassName="!mb-0"
                     />
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                <ResponsiveTable minWidth="720px">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -75,7 +71,7 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                             {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : pagedCustomers.map(c => (
                                 <TableRow
                                     key={c.id}
-                                    className={!c.is_active ? 'bg-gray-100 opacity-60' : ''}
+                                    className={`${!c.is_active ? 'bg-gray-100 opacity-60' : ''} cursor-pointer hover:bg-slate-50`}
                                     onClick={() => onView(c)}
                                     onMouseEnter={() => onPrefetch?.(c.id)}
                                 >
@@ -145,12 +141,12 @@ function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, 
                             ))}
                         </TableBody>
                     </Table>
-                </div>
+                </ResponsiveTable>
                 <Pagination
                     currentPage={page}
                     totalCount={filteredCustomers.length}
                     pageSize={pageSize}
-                    onPageChange={setPage}
+                    onPageChange={(nextPage) => setSearchParams({ page: nextPage })}
                     isLoading={loading}
                 />
             </CardContent>

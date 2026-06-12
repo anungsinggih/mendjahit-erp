@@ -378,10 +378,10 @@ export default function PurchaseHistory() {
       />
 
       {(fetchErrorMessage || error) && (
-        <Alert variant="error" title="Kesalahan" description={fetchErrorMessage || error || ""} />
+        <Alert variant="error" title="Error" description={fetchErrorMessage || error || ""} />
       )}
       {success && (
-        <Alert variant="success" title="Sukses" description={success} />
+        <Alert variant="success" title="Success" description={success} />
       )}
 
       {/* FILTER SECTION */}

@@ -8,6 +8,14 @@ type CustomerBadgeProps = {
 };
 
 export function CustomerBadge({ name, customerType, className = "" }: CustomerBadgeProps) {
+    const label = customerType === 'KHUSUS'
+        ? 'Special'
+        : customerType === 'CUSTOM'
+            ? 'Custom'
+            : customerType === 'UMUM'
+                ? 'General'
+                : customerType
+
     return (
         <div className={`flex items-center gap-2 ${className}`}>
             <span className="font-medium truncate text-gray-900">{name}</span>
@@ -19,7 +27,7 @@ export function CustomerBadge({ name, customerType, className = "" }: CustomerBa
                 }
                 className="h-5 px-1.5 text-[10px] uppercase shrink-0"
             >
-                {customerType}
+                {label}
             </Badge>
         </div>
     );
