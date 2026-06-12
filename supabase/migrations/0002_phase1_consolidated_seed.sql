@@ -79,7 +79,7 @@ INSERT INTO colors (code, name, is_active) VALUES
 ('HIJAU', 'Hijau', true),
 ('BIRU', 'Biru', true),
 ('COKLAT', 'Cokelat', true),
-('HITAM', 'Hitam', true),
+('HITAM', 'Hitam', true)
 ON CONFLICT (code) DO NOTHING;
 
 -- Seed Sizes
