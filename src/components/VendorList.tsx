@@ -42,7 +42,7 @@ function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurcha
     const getTypeLabel = (type?: Vendor['vendor_type']) => {
         switch (type) {
             case 'KONVEKSI':
-                return 'Subcontractor'
+                return 'Konveksi'
             case 'INTERNAL':
                 return 'Internal'
             case 'SUPPLIER':

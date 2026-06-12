@@ -23,7 +23,7 @@ type VendorDetailProps = {
 const getTypeLabel = (type?: VendorType) => {
   switch (type) {
     case 'KONVEKSI':
-      return 'Subcontractor'
+      return 'Konveksi'
     case 'INTERNAL':
       return 'Internal'
     case 'SUPPLIER':
