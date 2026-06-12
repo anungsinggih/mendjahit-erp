@@ -101,7 +101,7 @@ export default function VendorForm({ initialData, onSuccess, onCancel }: VendorF
                 onChange={(val: string) => setFormData({ ...formData, vendor_type: val as Vendor['vendor_type'] })}
                 options={[
                     { label: 'Supplier', value: 'SUPPLIER' },
-                    { label: 'Konveksi', value: 'KONVEKSI' },
+                    { label: 'Subcontractor', value: 'KONVEKSI' },
                     { label: 'Internal', value: 'INTERNAL' },
                 ]}
             />
