@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { memo, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import {
     Table,
@@ -12,6 +12,7 @@ import { Button } from "./ui/Button";
 import { ResponsiveTable } from './ui/ResponsiveTable';
 import { Icons } from "./ui/Icons";
 import { Card, CardContent } from "./ui/Card";
+import { logger } from "../lib/logger";
 
 type AR = {
     id: string;
@@ -30,6 +31,72 @@ type Props = {
     refreshTrigger: number;
     initialSelectedId?: string | null;
 };
+
+type FinanceArRowProps = {
+    item: AR;
+    selectedId: string | null;
+    onSelect: (id: string, amount: number, refNo?: string) => void;
+};
+
+const FinanceArRow = memo(function FinanceArRow({ item, selectedId, onSelect }: FinanceArRowProps) {
+    const isSelected = selectedId === item.id;
+    const isPaid = item.status === 'PAID';
+
+    return (
+        <TableRow
+            className={`cursor-pointer transition-all border-b border-slate-100 last:border-0 ${isSelected ? "bg-indigo-50/60 hover:bg-indigo-50" : "hover:bg-slate-50"}`}
+            onClick={() => onSelect(item.id, item.outstanding_amount)}
+        >
+            <TableCell>
+                <div className="flex flex-col">
+                    <span className="font-medium text-slate-700">{new Date(item.invoice_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    <span className={`text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded w-fit ${item.status === 'PARTIAL' ? 'bg-orange-100 text-orange-700' : item.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {item.status}
+                    </span>
+                </div>
+            </TableCell>
+            <TableCell>
+                <div className="flex flex-col">
+                    <span className="font-semibold text-slate-900">{item.customer?.name}</span>
+                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                        <Icons.FileText className="w-3 h-3" />
+                        {item.sales?.sales_no || item.invoice_no || '-'}
+                    </span>
+                </div>
+            </TableCell>
+            <TableCell className="text-right">
+                <span className="text-slate-600 font-medium">Rp {item.total_amount.toLocaleString("id-ID")}</span>
+            </TableCell>
+            <TableCell className="text-right">
+                {isPaid ? (
+                    <span className="text-emerald-600 font-bold text-xs">LUNAS</span>
+                ) : (
+                    <span className="font-bold text-indigo-600">Rp {item.outstanding_amount.toLocaleString("id-ID")}</span>
+                )}
+            </TableCell>
+            <TableCell className="text-center">
+                {isSelected ? (
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 shadow-sm animate-in zoom-in duration-200">
+                        <Icons.Check className="w-5 h-5" />
+                    </span>
+                ) : (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-3 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(item.id, item.outstanding_amount, item.sales?.sales_no || item.invoice_no || item.id.substring(0, 8));
+                        }}
+                        disabled={isPaid}
+                    >
+                        Select
+                    </Button>
+                )}
+            </TableCell>
+        </TableRow>
+    );
+});
 
 export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSelectedId }: Props) {
     const [arListRaw, setArListRaw] = useState<AR[]>([]);
@@ -96,11 +163,15 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
             if (error) throw error;
             setArListRaw(data || []);
         } catch (err) {
-            console.error(err);
+            logger.error('Failed to fetch AR list', err);
         } finally {
             setLoading(false);
         }
     }, [dateFrom, dateTo, statusFilter]);
+
+    const renderedRows = useMemo(() => arList.map((item) => (
+        <FinanceArRow key={item.id} item={item} selectedId={selectedId} onSelect={onSelect} />
+    )), [arList, onSelect, selectedId]);
 
     useEffect(() => {
         fetchAR();
@@ -218,69 +289,7 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSel
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                ) : (
-                                    arList.map((item) => {
-                                        const isSelected = selectedId === item.id;
-                                        const isPaid = item.status === 'PAID';
-                                        return (
-                                            <TableRow
-                                                key={item.id}
-                                                className={`cursor-pointer transition-all border-b border-slate-100 last:border-0 ${isSelected ? "bg-indigo-50/60 hover:bg-indigo-50" : "hover:bg-slate-50"}`}
-                                                onClick={() => onSelect(item.id, item.outstanding_amount)}
-                                            >
-                                                <TableCell className="">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-slate-700">{new Date(item.invoice_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                                        <span className={`text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded w-fit ${item.status === 'PARTIAL' ? 'bg-orange-100 text-orange-700' : item.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                            {item.status}
-                                                        </span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold text-slate-900">{item.customer?.name}</span>
-                                                        <span className="text-xs text-slate-500 flex items-center gap-1">
-                                                            <Icons.FileText className="w-3 h-3" />
-                                                            {item.sales?.sales_no || item.invoice_no || '-'}
-                                                        </span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <span className="text-slate-600 font-medium">Rp {item.total_amount.toLocaleString("id-ID")}</span>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {isPaid ? (
-                                                        <span className="text-emerald-600 font-bold text-xs">LUNAS</span>
-                                                    ) : (
-                                                        <span className="font-bold text-indigo-600">
-                                                            Rp {item.outstanding_amount.toLocaleString("id-ID")}
-                                                        </span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    {isSelected ? (
-                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 shadow-sm animate-in zoom-in duration-200">
-                                                            <Icons.Check className="w-5 h-5" />
-                                                        </span>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-8 px-3 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onSelect(item.id, item.outstanding_amount, item.sales?.sales_no || item.invoice_no || item.id.substring(0,8));
-                                                            }}
-                                                            disabled={isPaid}
-                                                        >
-                                                            Select
-                                                        </Button>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                )}
+                                ) : renderedRows}
                             </TableBody>
                         </Table>
                     </ResponsiveTable>

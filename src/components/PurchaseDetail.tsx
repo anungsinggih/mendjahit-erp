@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
-import { usePurchaseDetailQuery, useQueryClient } from "../hooks/useQueries";
+import { purchaseQueryKeys, usePurchaseDetailQuery, useQueryClient, vendorQueryKeys } from "../hooks/useQueries";
 import { Button } from "./ui/Button";
 import { PageHeader } from "./ui/PageHeader";
 import { useConfirm } from "./ui/ConfirmDialogContext";
@@ -20,6 +20,7 @@ import DocumentHeaderCard from "./shared/DocumentHeaderCard";
 import LineItemsTable from "./shared/LineItemsTable";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
 import { PurchaseReturnForm } from "./PurchaseReturnForm";
+import { logger } from "../lib/logger";
 
 const getErrorMessageLocal = (error: unknown) => {
   if (error instanceof Error) return error.message;
@@ -103,7 +104,7 @@ export default function PurchaseDetail({
       setCashBankAccounts(data.filter((a: { code: string }) => a.code.startsWith("11")));
       setIsDPModalOpen(true);
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to open purchase DP modal', err);
     }
   }
 
@@ -160,7 +161,9 @@ export default function PurchaseDetail({
       });
       if (error) throw error;
       setDeleteSuccess("Draft berhasil dihapus, kembali ke daftar...");
-      queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
+      queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.history });
+      queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.detail(purchase.id) });
+      queryClient.invalidateQueries({ queryKey: vendorQueryKeys.detailRoot });
       setTimeout(() => {
         if (embedded) {
           onClose?.();
@@ -229,7 +232,10 @@ export default function PurchaseDetail({
       }
 
       setPostSuccess("Purchase posted successfully!");
-      queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
+      queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.history });
+      queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.detail(purchase.id) });
+      queryClient.invalidateQueries({ queryKey: vendorQueryKeys.detailRoot });
+      queryClient.invalidateQueries({ queryKey: vendorQueryKeys.outstanding });
       refetch();
     } catch (err: unknown) {
       if (err instanceof Error) setPostError(err.message || "Failed to post purchase");

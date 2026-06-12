@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import CustomerForm, { type Customer } from "./CustomerForm";
 import { PricingService, type PriceCheckResult } from "../services/pricingService";
 import { Combobox } from "./ui/Combobox";
+import { logger } from "../lib/logger";
 
 import { ITEM_TYPES } from "../lib/constants";
 import type { Item } from "../types/shared";
@@ -525,7 +526,7 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                     .upsert(upserts, { onConflict: 'customer_id,item_id' });
 
                 if (priceError) {
-                    console.error("Failed to auto-save custom prices:", priceError);
+                    logger.error('Failed to auto-save custom prices', priceError);
                     // We don't block the sales save for this, but ideally we should warn or log
                 } else {
                     // Update local map to reflect saved prices immediately
@@ -570,12 +571,13 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
             }
 
             if (salesId) {
+                queryClient.invalidateQueries({ queryKey: ["sales-detail", salesId] });
+                queryClient.invalidateQueries({ queryKey: ["sales-history"] });
+                queryClient.invalidateQueries({ queryKey: ["customer-detail"] });
                 onSuccess(initialSalesId ? "Sales Updated!" : `Draft Created! ID: ${salesId}`);
                 onSaved?.(salesId);
             }
             if (redirectOnSave) {
-                queryClient.invalidateQueries({ queryKey: ["sales-detail", salesId] });
-                queryClient.invalidateQueries({ queryKey: ["sales-history"] });
                 navigate(`/sales/${salesId}`);
             }
         } catch (err: unknown) {
@@ -634,7 +636,7 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                     return; // Stop here, wait for confirmation
                 }
             } catch (err) {
-                console.error("Price check failed", err);
+                logger.error('Price check failed', err);
                 // Fallback or alert? For now proceed or alert.
             }
         }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { getErrorMessage } from "../lib/errors";
 import { useNavigate, useParams } from 'react-router-dom'
-import { useSalesReturnDetailQuery, useQueryClient } from '../hooks/useQueries'
+import { customerQueryKeys, salesQueryKeys, salesReturnQueryKeys, useSalesReturnDetailQuery, useQueryClient } from '../hooks/useQueries'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { formatCurrency, formatDate, safeDocNo } from '../lib/format'
@@ -77,7 +77,12 @@ export default function SalesReturnDetail({ returnId, embedded = false, onClose 
             const { error: postError } = await supabase.rpc('rpc_post_sales_return', { p_return_id: returnDoc.id })
             if (postError) throw postError
             setSuccess("Return POSTED Successfully!")
-            queryClient.invalidateQueries({ queryKey: ["sales-returns-history"] })
+            queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.detail(returnDoc.id) })
+            queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(returnDoc.sales_id) })
+            queryClient.invalidateQueries({ queryKey: salesQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: customerQueryKeys.detailRoot })
+            queryClient.invalidateQueries({ queryKey: customerQueryKeys.outstanding })
             refetch()
         } catch (err: unknown) {
             setActionError(getErrorMessage(err, 'Unknown error'))
@@ -105,7 +110,9 @@ export default function SalesReturnDetail({ returnId, embedded = false, onClose 
                 .eq('id', returnDoc.id)
                 .eq('status', 'DRAFT')
             if (delError) throw delError
-            queryClient.invalidateQueries({ queryKey: ["sales-returns-history"] })
+            queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.draftCount })
+            queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(returnDoc.sales_id) })
             if (embedded) onClose?.()
             else navigate('/sales-returns/history')
         } catch (err: unknown) {

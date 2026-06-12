@@ -4,6 +4,7 @@ import { Button } from './ui/Button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import { Icons } from './ui/Icons'
 import { useConfirm } from './ui/ConfirmDialogContext'
+import { logger } from '../lib/logger'
 // xlsx is loaded dynamically when import/export is triggered
 
 type ImportDialogProps = {
@@ -45,7 +46,7 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
                 setError(null)
             } catch (err) {
                 setError('Failed to parse file. Please ensure it is a valid Excel or CSV file.')
-                console.error(err)
+                logger.error('Failed to parse import file', err)
             }
         }
         reader.readAsArrayBuffer(file)

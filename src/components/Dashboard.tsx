@@ -11,6 +11,7 @@ import { prefetchSalesDetail, prefetchPurchaseDetail, useQueryClient } from '../
 import { PageHeader } from './ui/PageHeader'
 import { Section } from './ui/Section'
 import { Badge } from './ui/Badge'
+import { logger } from '../lib/logger'
 
 type DashboardMetrics = {
     sales_today: number
@@ -98,7 +99,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
             if (error) throw error
             setMetrics(data)
         } catch (error) {
-            console.error('Error fetching metrics:', error)
+            logger.error('Error fetching metrics', error)
         } finally {
             setLoading(false)
         }
@@ -115,7 +116,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
             if (error) throw error
             if (data) setPeriodInfo(data as PeriodInfo)
         } catch (error) {
-            console.error('Error fetching period status:', error)
+            logger.error('Error fetching period status', error)
         }
     }, [])
 
@@ -154,7 +155,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                 .map(r => ({ date: r.bill_date as string, outstanding: Number(r.outstanding_amount || 0) }))
             setApAging(computeAgingBuckets(apClean))
         } catch (error) {
-            console.error('Error fetching aging summary:', error)
+            logger.error('Error fetching aging summary', error)
         }
     }, [computeAgingBuckets])
 
@@ -228,7 +229,7 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                 qty_out: stockMap.get(date)?.qty_out || 0
             })))
         } catch (error) {
-            console.error('Error fetching trends:', error)
+            logger.error('Error fetching trends', error)
             setSalesTrend([])
             setPurchaseTrend([])
             setStockTrend([])

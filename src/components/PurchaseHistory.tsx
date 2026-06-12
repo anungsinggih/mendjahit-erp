@@ -32,6 +32,7 @@ import { PurchaseEntryForm } from "./PurchaseEntryForm";
 import PurchaseDetail from "./PurchaseDetail";
 import { PurchaseReturnForm } from "./PurchaseReturnForm";
 import PurchaseReturnDetail from "./PurchaseReturnDetail";
+import { logger } from "../lib/logger";
 
 
 type PurchaseRecord = {
@@ -215,7 +216,7 @@ export default function PurchaseHistory() {
         dpTotal = (lines || []).reduce((sum, l) => sum + (Number(l.debit) || 0), 0);
       }
     } catch (err) {
-      console.error("Failed to fetch DP info", err);
+      logger.error('Failed to fetch purchase DP info', err);
     }
 
     const summaryContent = (

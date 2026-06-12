@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { getErrorMessage } from "../lib/errors";
 import { useNavigate, useParams } from 'react-router-dom'
-import { usePurchaseReturnDetailQuery, useQueryClient } from '../hooks/useQueries'
+import { purchaseQueryKeys, purchaseReturnQueryKeys, usePurchaseReturnDetailQuery, useQueryClient, vendorQueryKeys } from '../hooks/useQueries'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { formatCurrency, formatDate, safeDocNo } from '../lib/format'
@@ -76,7 +76,12 @@ export default function PurchaseReturnDetail({ returnId, embedded = false, onClo
             const { error: postError } = await supabase.rpc('rpc_post_purchase_return', { p_return_id: returnDoc.id })
             if (postError) throw postError
             setSuccess("Return POSTED Successfully!")
-            queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.detail(returnDoc.id) })
+            queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.detail(returnDoc.purchase_id) })
+            queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: vendorQueryKeys.detailRoot })
+            queryClient.invalidateQueries({ queryKey: vendorQueryKeys.outstanding })
             refetch()
         } catch (err: unknown) {
             setActionError(getErrorMessage(err, 'Unknown error'))
@@ -104,7 +109,9 @@ export default function PurchaseReturnDetail({ returnId, embedded = false, onClo
                 .eq('id', returnDoc.id)
                 .eq('status', 'DRAFT')
             if (delError) throw delError
-            queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.draftCount })
+            queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.detail(returnDoc.purchase_id) })
             if (embedded) onClose?.()
             else navigate('/purchase-returns/history')
         } catch (err: unknown) {

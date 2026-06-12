@@ -13,7 +13,7 @@ import { useConfirm } from "./ui/ConfirmDialogContext";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from '../hooks/useQueries';
+import { salesQueryKeys, salesReturnQueryKeys, useQueryClient } from '../hooks/useQueries';
 import { PageHeader } from "./ui/PageHeader";
 
 type Sale = {
@@ -347,8 +347,10 @@ export function SalesReturnForm({
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Updated: ${draftId}`)
-                queryClient.invalidateQueries({ queryKey: ["sales-return-detail", draftId] })
-                queryClient.invalidateQueries({ queryKey: ["sales-returns-history"] })
+                queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.detail(draftId) })
+                queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.history })
+                queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.draftCount })
+                queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(selectedSaleId) })
                 onSaved?.(draftId)
                 if (redirectOnSave) {
                     navigate(`/sales-returns/${draftId}`)
@@ -386,8 +388,10 @@ export function SalesReturnForm({
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Created: ${retData.id}`)
-                queryClient.invalidateQueries({ queryKey: ["sales-return-detail", retData.id] })
-                queryClient.invalidateQueries({ queryKey: ["sales-returns-history"] })
+                queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.detail(retData.id) })
+                queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.history })
+                queryClient.invalidateQueries({ queryKey: salesReturnQueryKeys.draftCount })
+                queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(selectedSaleId) })
                 onSaved?.(retData.id)
                 if (redirectOnSave) {
                     navigate(`/sales-returns/${retData.id}`)

@@ -10,7 +10,7 @@ import VendorForm, { type Vendor } from './VendorForm'
 import { getErrorMessage } from '../lib/errors'
 import { formatCurrency } from '../lib/format'
 import { useNavigate } from 'react-router-dom'
-import { useVendorsQuery, useVendorOutstandingQuery, prefetchVendorDetail, useQueryClient } from '../hooks/useQueries'
+import { vendorQueryKeys, useVendorsQuery, useVendorOutstandingQuery, prefetchVendorDetail, useQueryClient } from '../hooks/useQueries'
 
 export default function Vendors() {
     const navigate = useNavigate()
@@ -39,7 +39,9 @@ export default function Vendors() {
         setIsModalOpen(false)
         refetch()
         refetchOutstanding()
-        queryClient.invalidateQueries({ queryKey: ["vendor-detail"] })
+        queryClient.invalidateQueries({ queryKey: vendorQueryKeys.all })
+        queryClient.invalidateQueries({ queryKey: vendorQueryKeys.outstanding })
+        queryClient.invalidateQueries({ queryKey: vendorQueryKeys.detailRoot })
     }, [refetch, refetchOutstanding, queryClient])
 
     const handleAddVendor = useCallback(() => {
@@ -85,7 +87,9 @@ export default function Vendors() {
         else {
             refetch()
             refetchOutstanding()
-            queryClient.invalidateQueries({ queryKey: ["vendor-detail", id] })
+            queryClient.invalidateQueries({ queryKey: vendorQueryKeys.all })
+            queryClient.invalidateQueries({ queryKey: vendorQueryKeys.outstanding })
+            queryClient.invalidateQueries({ queryKey: vendorQueryKeys.detail(id) })
         }
     }, [confirm, refetch, refetchOutstanding, queryClient])
 

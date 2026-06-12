@@ -19,6 +19,42 @@ function toSingleRelation<T>(value: T | T[] | null | undefined): T | undefined {
   return value ?? undefined
 }
 
+export const customerQueryKeys = {
+  all: ["customers"] as const,
+  outstanding: ["customers-outstanding"] as const,
+  detailRoot: ["customer-detail"] as const,
+  detail: (id: string | undefined) => ["customer-detail", id] as const,
+}
+
+export const vendorQueryKeys = {
+  all: ["vendors"] as const,
+  outstanding: ["vendors-outstanding"] as const,
+  detailRoot: ["vendor-detail"] as const,
+  detail: (id: string | undefined) => ["vendor-detail", id] as const,
+}
+
+export const salesQueryKeys = {
+  history: ["sales-history"] as const,
+  detail: (id: string | undefined) => ["sales-detail", id] as const,
+}
+
+export const purchaseQueryKeys = {
+  history: ["purchase-history"] as const,
+  detail: (id: string | undefined) => ["purchase-detail", id] as const,
+}
+
+export const salesReturnQueryKeys = {
+  history: ["sales-returns-history"] as const,
+  detail: (id: string | undefined) => ["sales-return-detail", id] as const,
+  draftCount: ["sales-return-draft-count"] as const,
+}
+
+export const purchaseReturnQueryKeys = {
+  history: ["purchase-returns-history"] as const,
+  detail: (id: string | undefined) => ["purchase-return-detail", id] as const,
+  draftCount: ["purchase-return-draft-count"] as const,
+}
+
 export function useItemsQuery(params: {
   typeFilter: string
 }) {
@@ -137,7 +173,7 @@ export function useInventoryQuery(params: {
 
 export function useCustomersQuery() {
   return useQuery({
-    queryKey: ["customers"],
+    queryKey: customerQueryKeys.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
@@ -145,13 +181,14 @@ export function useCustomersQuery() {
         .order("name", { ascending: true })
       if (error) throw error
       return (data as Customer[]) || []
-    }
+    },
+    staleTime: 30_000,
   })
 }
 
 export function useCustomerOutstandingQuery() {
   return useQuery({
-    queryKey: ["customers-outstanding"],
+    queryKey: customerQueryKeys.outstanding,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ar_invoices")
@@ -165,13 +202,14 @@ export function useCustomerOutstandingQuery() {
           0
         )
       return sum
-    }
+    },
+    staleTime: 30_000,
   })
 }
 
 export function useVendorsQuery() {
   return useQuery({
-    queryKey: ["vendors"],
+    queryKey: vendorQueryKeys.all,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendors")
@@ -179,13 +217,14 @@ export function useVendorsQuery() {
         .order("name", { ascending: true })
       if (error) throw error
       return (data as Vendor[]) || []
-    }
+    },
+    staleTime: 30_000,
   })
 }
 
 export function useVendorOutstandingQuery() {
   return useQuery({
-    queryKey: ["vendors-outstanding"],
+    queryKey: vendorQueryKeys.outstanding,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ap_bills")
@@ -199,7 +238,8 @@ export function useVendorOutstandingQuery() {
           0
         )
       return sum
-    }
+    },
+    staleTime: 30_000,
   })
 }
 
@@ -691,7 +731,7 @@ async function fetchSalesDetailData(saleId: string): Promise<SalesDetailData> {
 
 export function useSalesDetailQuery(id: string | undefined) {
   return useQuery({
-    queryKey: ["sales-detail", id],
+    queryKey: salesQueryKeys.detail(id),
     queryFn: () => fetchSalesDetailData(id!),
     enabled: !!id,
   })
@@ -699,7 +739,7 @@ export function useSalesDetailQuery(id: string | undefined) {
 
 export function prefetchSalesDetail(queryClient: QueryClient, id: string) {
   return queryClient.prefetchQuery({
-    queryKey: ["sales-detail", id],
+    queryKey: salesQueryKeys.detail(id),
     queryFn: () => fetchSalesDetailData(id),
     staleTime: 30_000,
   })
@@ -935,7 +975,7 @@ async function fetchPurchaseDetailData(purchaseId: string): Promise<PurchaseDeta
 
 export function usePurchaseDetailQuery(id: string | undefined) {
   return useQuery({
-    queryKey: ["purchase-detail", id],
+    queryKey: purchaseQueryKeys.detail(id),
     queryFn: () => fetchPurchaseDetailData(id!),
     enabled: !!id,
   })
@@ -943,7 +983,7 @@ export function usePurchaseDetailQuery(id: string | undefined) {
 
 export function prefetchPurchaseDetail(queryClient: QueryClient, id: string) {
   return queryClient.prefetchQuery({
-    queryKey: ["purchase-detail", id],
+    queryKey: purchaseQueryKeys.detail(id),
     queryFn: () => fetchPurchaseDetailData(id),
     staleTime: 30_000,
   })
@@ -1025,7 +1065,7 @@ async function fetchSalesReturnDetailData(returnId: string): Promise<SalesReturn
 
 export function useSalesReturnDetailQuery(id: string | undefined) {
   return useQuery({
-    queryKey: ["sales-return-detail", id],
+    queryKey: salesReturnQueryKeys.detail(id),
     queryFn: () => fetchSalesReturnDetailData(id!),
     enabled: !!id,
   })
@@ -1033,7 +1073,7 @@ export function useSalesReturnDetailQuery(id: string | undefined) {
 
 export function prefetchSalesReturnDetail(queryClient: QueryClient, id: string) {
   return queryClient.prefetchQuery({
-    queryKey: ["sales-return-detail", id],
+    queryKey: salesReturnQueryKeys.detail(id),
     queryFn: () => fetchSalesReturnDetailData(id),
     staleTime: 30_000,
   })
@@ -1114,7 +1154,7 @@ async function fetchPurchaseReturnDetailData(returnId: string): Promise<Purchase
 
 export function usePurchaseReturnDetailQuery(id: string | undefined) {
   return useQuery({
-    queryKey: ["purchase-return-detail", id],
+    queryKey: purchaseReturnQueryKeys.detail(id),
     queryFn: () => fetchPurchaseReturnDetailData(id!),
     enabled: !!id,
   })
@@ -1122,7 +1162,7 @@ export function usePurchaseReturnDetailQuery(id: string | undefined) {
 
 export function prefetchPurchaseReturnDetail(queryClient: QueryClient, id: string) {
   return queryClient.prefetchQuery({
-    queryKey: ["purchase-return-detail", id],
+    queryKey: purchaseReturnQueryKeys.detail(id),
     queryFn: () => fetchPurchaseReturnDetailData(id),
     staleTime: 30_000,
   })
@@ -1183,15 +1223,16 @@ async function fetchCustomerDetailData(customerId: string) {
 
 export function useCustomerDetailQuery(id: string | undefined) {
   return useQuery({
-    queryKey: ["customer-detail", id],
+    queryKey: customerQueryKeys.detail(id),
     queryFn: () => fetchCustomerDetailData(id!),
     enabled: !!id,
+    staleTime: 30_000,
   })
 }
 
 export function prefetchCustomerDetail(queryClient: QueryClient, id: string) {
   return queryClient.prefetchQuery({
-    queryKey: ["customer-detail", id],
+    queryKey: customerQueryKeys.detail(id),
     queryFn: () => fetchCustomerDetailData(id),
     staleTime: 30_000,
   })
@@ -1249,15 +1290,16 @@ async function fetchVendorDetailData(vendorId: string) {
 
 export function useVendorDetailQuery(id: string | undefined) {
   return useQuery({
-    queryKey: ["vendor-detail", id],
+    queryKey: vendorQueryKeys.detail(id),
     queryFn: () => fetchVendorDetailData(id!),
     enabled: !!id,
+    staleTime: 30_000,
   })
 }
 
 export function prefetchVendorDetail(queryClient: QueryClient, id: string) {
   return queryClient.prefetchQuery({
-    queryKey: ["vendor-detail", id],
+    queryKey: vendorQueryKeys.detail(id),
     queryFn: () => fetchVendorDetailData(id),
     staleTime: 30_000,
   })

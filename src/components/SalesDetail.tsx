@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
-import { useSalesDetailQuery, useQueryClient } from "../hooks/useQueries";
+import { customerQueryKeys, salesQueryKeys, useSalesDetailQuery, useQueryClient } from "../hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import {
   Table,
@@ -23,6 +23,7 @@ import { getErrorMessage } from "../lib/errors";
 import { SalesInvoicePrint } from "./print/SalesInvoicePrint";
 import { toPng } from "html-to-image";
 import { formatDate, safeDocNo } from "../lib/format";
+import { logger } from "../lib/logger";
 
 type SalesDetail = {
   id: string;
@@ -166,7 +167,7 @@ export default function SalesDetail({ salesId, embedded = false, onClose, onOpen
       link.download = downloadFileName;
       link.click();
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to download sales invoice image', err);
       if (printRef.current) {
         const clones = Array.from(document.body.querySelectorAll("div"))
           .filter((el) => el.style.zIndex === "9999" && el.style.position === "fixed");
@@ -221,7 +222,9 @@ export default function SalesDetail({ salesId, embedded = false, onClose, onOpen
       });
       if (error) throw error;
       setDeleteSuccess("Draft berhasil dihapus, kembali ke daftar...");
-      queryClient.invalidateQueries({ queryKey: ["sales-history"] });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.history });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(sale.id) });
+      queryClient.invalidateQueries({ queryKey: customerQueryKeys.detailRoot });
       setTimeout(() => {
         if (embedded) {
           onClose?.();
@@ -267,7 +270,10 @@ export default function SalesDetail({ salesId, embedded = false, onClose, onOpen
       }
 
       setPostSuccess("Sales posted successfully!");
-      queryClient.invalidateQueries({ queryKey: ["sales-history"] });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.history });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(sale.id) });
+      queryClient.invalidateQueries({ queryKey: customerQueryKeys.detailRoot });
+      queryClient.invalidateQueries({ queryKey: customerQueryKeys.outstanding });
       refetch();
     } catch (err: unknown) {
       if (err instanceof Error) setPostError(err.message || "Failed to post sales");

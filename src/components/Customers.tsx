@@ -10,7 +10,7 @@ import CustomerList from './CustomerList'
 import { useNavigate } from 'react-router-dom'
 import { getErrorMessage } from '../lib/errors'
 import { formatCurrency } from '../lib/format'
-import { useCustomersQuery, useCustomerOutstandingQuery, prefetchCustomerDetail, useQueryClient } from '../hooks/useQueries'
+import { customerQueryKeys, useCustomersQuery, useCustomerOutstandingQuery, prefetchCustomerDetail, useQueryClient } from '../hooks/useQueries'
 
 export default function Customers() {
     const navigate = useNavigate()
@@ -39,7 +39,9 @@ export default function Customers() {
         setIsModalOpen(false)
         refetch()
         refetchOutstanding()
-        queryClient.invalidateQueries({ queryKey: ["customer-detail"] })
+        queryClient.invalidateQueries({ queryKey: customerQueryKeys.all })
+        queryClient.invalidateQueries({ queryKey: customerQueryKeys.outstanding })
+        queryClient.invalidateQueries({ queryKey: customerQueryKeys.detailRoot })
     }, [refetch, refetchOutstanding, queryClient])
 
     const handleAddCustomer = useCallback(() => {
@@ -89,7 +91,9 @@ export default function Customers() {
         else {
             refetch()
             refetchOutstanding()
-            queryClient.invalidateQueries({ queryKey: ["customer-detail", id] })
+            queryClient.invalidateQueries({ queryKey: customerQueryKeys.all })
+            queryClient.invalidateQueries({ queryKey: customerQueryKeys.outstanding })
+            queryClient.invalidateQueries({ queryKey: customerQueryKeys.detail(id) })
         }
     }, [confirm, refetch, refetchOutstanding, queryClient])
 

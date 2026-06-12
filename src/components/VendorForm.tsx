@@ -6,6 +6,15 @@ import { Switch } from './ui/Switch'
 import { Textarea } from './ui/Textarea'
 import { ButtonSelect } from './ui/ButtonSelect'
 import type { Vendor as SharedVendor } from '../types/shared'
+import { z } from 'zod'
+
+const vendorSchema = z.object({
+    name: z.string().trim().min(2, 'Name must be at least 2 characters'),
+    phone: z.string().trim().max(30, 'Phone is too long').optional().or(z.literal('')),
+    address: z.string().trim().max(500, 'Address is too long').optional().or(z.literal('')),
+    vendor_type: z.enum(['SUPPLIER', 'KONVEKSI', 'INTERNAL']),
+    is_active: z.boolean(),
+})
 
 export type Vendor = SharedVendor
 
@@ -33,19 +42,33 @@ export default function VendorForm({ initialData, onSuccess, onCancel }: VendorF
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setError(null)
+
+        const validation = vendorSchema.safeParse({
+            name: formData.name ?? '',
+            phone: formData.phone ?? '',
+            address: formData.address ?? '',
+            vendor_type: formData.vendor_type ?? 'SUPPLIER',
+            is_active: formData.is_active ?? true,
+        })
+
+        if (!validation.success) {
+            setError(validation.error.issues[0]?.message || 'Invalid vendor form')
+            return
+        }
+
         setLoading(true)
 
         try {
             if (initialData?.id) {
                 const { error } = await supabase
                     .from('vendors')
-                    .update(formData)
+                    .update(validation.data)
                     .eq('id', initialData.id)
                 if (error) throw error
             } else {
                 const { error } = await supabase
                     .from('vendors')
-                    .insert([formData])
+                    .insert([validation.data])
                 if (error) throw error
             }
 

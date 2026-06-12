@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient'
 import imageCompression from 'browser-image-compression'
 import { Icons } from './Icons'
 import { Button } from './Button'
+import { logger } from '../../lib/logger'
 
 interface ImageUploadProps {
     value?: string | null
@@ -60,7 +61,7 @@ export function ImageUpload({ value, onChange, folder = 'uploads' }: ImageUpload
             setProgress(100)
 
         } catch (err: unknown) {
-            console.error(err)
+            logger.error('Image upload failed', err)
             const msg = err instanceof Error ? err.message : 'Upload failed'
             setError(msg)
         } finally {

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { SalesEntryForm } from './SalesEntryForm';
 import { Button } from './ui/Button';
 import { useConfirm } from './ui/ConfirmDialogContext';
+import { logger } from '../lib/logger';
 
 export default function SalesEdit() {
     const { id } = useParams<{ id: string }>();
@@ -17,11 +18,11 @@ export default function SalesEdit() {
 
     const handleSuccess = (msg: string) => {
         // SalesEntryForm handles navigation on success based on redirectOnSave
-        console.log("Success:", msg);
+        logger.info('Sales edit succeeded', msg);
     };
 
     const handleError = (msg: string) => {
-        console.error("Error:", msg);
+        logger.error('Sales edit failed', msg);
         void confirm({
             title: 'Error',
             description: msg,

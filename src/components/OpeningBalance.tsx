@@ -10,6 +10,7 @@ import { Icons } from './ui/Icons'
 import { PageHeader } from './ui/PageHeader'
 import { Alert } from './ui/Alert'
 import { Section } from './ui/Section'
+import { logger } from '../lib/logger'
 
 type Account = { id: string; code: string; name: string; account_type: string }
 
@@ -71,7 +72,7 @@ export default function OpeningBalance() {
             .from('opening_balances')
             .select('as_of_date, debit, credit, account_id, accounts(code, name)')
         if (error) {
-            console.error('Error fetching history:', error)
+            logger.error('Error fetching opening balance history', error)
             return
         }
 

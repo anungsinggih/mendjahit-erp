@@ -6,6 +6,15 @@ import { Select } from './ui/Select'
 import { Switch } from './ui/Switch'
 import { Textarea } from './ui/Textarea'
 import type { Customer as SharedCustomer } from '../types/shared'
+import { z } from 'zod'
+
+const customerSchema = z.object({
+    name: z.string().trim().min(2, 'Name must be at least 2 characters'),
+    phone: z.string().trim().max(30, 'Phone is too long').optional().or(z.literal('')),
+    address: z.string().trim().max(500, 'Address is too long').optional().or(z.literal('')),
+    customer_type: z.enum(['UMUM', 'KHUSUS', 'CUSTOM']),
+    is_active: z.boolean(),
+})
 
 export type Customer = SharedCustomer
 
@@ -33,19 +42,33 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setError(null)
+
+        const validation = customerSchema.safeParse({
+            name: formData.name ?? '',
+            phone: formData.phone ?? '',
+            address: formData.address ?? '',
+            customer_type: formData.customer_type ?? 'UMUM',
+            is_active: formData.is_active ?? true,
+        })
+
+        if (!validation.success) {
+            setError(validation.error.issues[0]?.message || 'Invalid customer form')
+            return
+        }
+
         setLoading(true)
 
         try {
             if (initialData?.id) {
                 const { error } = await supabase
                     .from('customers')
-                    .update(formData)
+                    .update(validation.data)
                     .eq('id', initialData.id)
                 if (error) throw error
             } else {
                 const { error } = await supabase
                     .from('customers')
-                    .insert([formData])
+                    .insert([validation.data])
                 if (error) throw error
             }
 

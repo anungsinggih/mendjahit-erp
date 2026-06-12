@@ -13,7 +13,7 @@ import { useConfirm } from "./ui/ConfirmDialogContext";
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from '../hooks/useQueries';
+import { purchaseQueryKeys, purchaseReturnQueryKeys, useQueryClient } from '../hooks/useQueries';
 
 type Purchase = {
     id: string
@@ -328,18 +328,17 @@ export function PurchaseReturnForm({ onSuccess, onError, embedded = false, initi
                 throw new Error('Purchase return draft save did not return return id')
             }
 
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.detail(savedReturnId) })
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.history })
+            queryClient.invalidateQueries({ queryKey: purchaseReturnQueryKeys.draftCount })
+            queryClient.invalidateQueries({ queryKey: purchaseQueryKeys.detail(selectedPurchaseId) })
+
             if (isEditing && draftId) {
                 onSuccess(`Return Draft Updated: ${savedReturnId}`)
-                queryClient.invalidateQueries({ queryKey: ["purchase-return-detail", savedReturnId] })
-                queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
-                queryClient.invalidateQueries({ queryKey: ["purchase-return-draft-count"] })
                 onSaved?.(savedReturnId)
                 if (!embedded) navigate(`/purchase-returns/${savedReturnId}`)
             } else {
                 onSuccess(`Return Draft Created: ${savedReturnId}`)
-                queryClient.invalidateQueries({ queryKey: ["purchase-return-detail", savedReturnId] })
-                queryClient.invalidateQueries({ queryKey: ["purchase-returns-history"] })
-                queryClient.invalidateQueries({ queryKey: ["purchase-return-draft-count"] })
                 onSaved?.(savedReturnId)
                 if (!embedded) navigate(`/purchase-returns/${savedReturnId}`)
             }

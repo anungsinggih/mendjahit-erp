@@ -13,6 +13,7 @@ import { MobileHeader } from "./components/MobileHeader";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import RouteOverlayRedirect from "./components/RouteOverlayRedirect";
+import { logger } from "./lib/logger";
 
 // Eager load only essential components
 import Login from "./components/Login";
@@ -214,7 +215,7 @@ function App() {
         setUserProfile(data);
       }
     } catch (e) {
-      console.error("Error fetching profile", e);
+      logger.error("Error fetching profile", e);
     } finally {
       setLoading(false);
     }

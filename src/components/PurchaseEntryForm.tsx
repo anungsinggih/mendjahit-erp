@@ -14,6 +14,7 @@ import { TotalFooter } from "./ui/TotalFooter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import VendorForm from "./VendorForm";
 import { Combobox } from "./ui/Combobox";
+import { logger } from "../lib/logger";
 
 type Vendor = {
     id: string;
@@ -124,7 +125,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
             const nextMap = Object.fromEntries((data || []).map((row) => [row.item_id, Number(row.unit_cost) || 0]));
             setVendorCostMap(nextMap);
         } catch (err) {
-            console.error("Failed to fetch vendor item costs", err);
+            logger.error('Failed to fetch vendor item costs', err);
             setVendorCostMap({});
         }
     }, []);
@@ -422,12 +423,14 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 throw new Error("Purchase draft save did not return purchase id");
             }
 
+            queryClient.invalidateQueries({ queryKey: ["purchase-detail", savedPurchaseId] });
+            queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
+            queryClient.invalidateQueries({ queryKey: ["vendor-detail"] });
+
             if (initialPurchaseId) {
                 onSuccess(`Draft Updated! ID: ${savedPurchaseId}`);
                 onSaved?.(savedPurchaseId);
                 if (redirectOnSave) {
-                    queryClient.invalidateQueries({ queryKey: ["purchase-detail", savedPurchaseId] });
-                    queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
                     navigate(`/purchases/${savedPurchaseId}`, { replace: true });
                 }
             } else {
@@ -441,8 +444,6 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 onSuccess(`Draft Created! ID: ${savedPurchaseId}`);
                 onSaved?.(savedPurchaseId);
                 if (redirectOnSave) {
-                    queryClient.invalidateQueries({ queryKey: ["purchase-detail", savedPurchaseId] });
-                    queryClient.invalidateQueries({ queryKey: ["purchase-history"] });
                     navigate(`/purchases/${savedPurchaseId}`, { replace: true });
                 }
             }

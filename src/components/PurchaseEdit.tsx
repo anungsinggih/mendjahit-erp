@@ -6,6 +6,7 @@ import { Button } from './ui/Button';
 import { useConfirm } from './ui/ConfirmDialogContext';
 import { Icons } from './ui/Icons';
 import { Alert } from './ui/Alert';
+import { logger } from '../lib/logger';
 
 export default function PurchaseEdit() {
     const { id } = useParams<{ id: string }>();
@@ -23,7 +24,7 @@ export default function PurchaseEdit() {
                 .eq('ref_id', id)
                 .limit(1);
             if (error) {
-                console.error(error);
+                logger.error('Failed to check purchase DP', error);
                 setHasDP(false);
                 return;
             }
@@ -33,10 +34,10 @@ export default function PurchaseEdit() {
     }, [id]);
 
     const handleSuccess = (msg: string) => {
-        console.log("Success:", msg);
+        logger.info('Purchase edit succeeded', msg);
     };
     const handleError = (msg: string) => {
-        console.error("Error:", msg);
+        logger.error('Purchase edit failed', msg);
         void confirm({
             title: 'Error',
             description: msg,

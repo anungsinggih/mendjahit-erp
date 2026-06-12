@@ -8,6 +8,7 @@ import { Icons } from './ui/Icons'
 import { Textarea } from './ui/Textarea'
 import { Checkbox } from './ui/Checkbox'
 import DevResetData from './DevResetData'
+import { logger } from '../lib/logger'
 
 type CompanyProfile = {
     id: string
@@ -107,7 +108,7 @@ export default function CompanySettings() {
                 setUserProfile(data)
             }
         } catch (error) {
-            console.error('Error fetching user profile:', error)
+            logger.error('Error fetching user profile', error)
         } finally {
             setUserLoading(false)
         }
@@ -135,7 +136,7 @@ export default function CompanySettings() {
             window.dispatchEvent(new Event('user-profile-updated'))
 
         } catch (error: unknown) {
-            console.error('Error updating user profile:', error)
+            logger.error('Error updating user profile', error)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const msg = (error as any)?.message || (error instanceof Error ? error.message : 'Unknown error')
             setUserMessage({ type: 'error', text: msg })
@@ -153,7 +154,7 @@ export default function CompanySettings() {
             if (error) throw error
             setInvites(data || [])
         } catch (error) {
-            console.error('Error fetching invites:', error)
+            logger.error('Error fetching invites', error)
         }
     }
 

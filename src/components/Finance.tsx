@@ -7,6 +7,7 @@ import { Icons } from "./ui/Icons";
 import { useLocation } from "react-router-dom";
 import { TransactionOverlayShell } from "./ui/TransactionOverlayShell";
 import { useRouteModal } from "../hooks/useRouteModal";
+import { logger } from "../lib/logger";
 
 // Sub-components
 import { FinanceARList } from "./FinanceARList";
@@ -54,7 +55,7 @@ export default function Finance() {
           .single();
         if (active) setIsOwner((profile?.role || "").toUpperCase() === "OWNER");
       } catch (err) {
-        console.error(err);
+        logger.error('Failed to load finance role', err);
       }
     };
     loadRole();
@@ -74,7 +75,7 @@ export default function Finance() {
         cash_balance: Number(data?.cash_balance || 0),
       });
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to load finance summary', err);
       setSummary(null);
     } finally {
       setSummaryLoading(false);
@@ -164,7 +165,7 @@ export default function Finance() {
         .map((r) => ({ date: r.bill_date as string, outstanding: Number(r.outstanding_amount || 0) }));
       setApAging(computeAgingBuckets(apClean));
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to load finance aging summary', err);
       setArAging(null);
       setApAging(null);
     }

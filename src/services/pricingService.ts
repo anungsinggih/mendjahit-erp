@@ -1,5 +1,5 @@
-
 import { supabase } from '../supabaseClient';
+import { logger } from '../lib/logger';
 
 export interface PriceCheckResult {
     itemId: string;
@@ -22,7 +22,7 @@ export const PricingService = {
             .in('id', itemIds);
 
         if (error) {
-            console.error('Error fetching master prices:', error);
+            logger.error('Error fetching master prices', error);
             throw error;
         }
 

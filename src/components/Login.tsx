@@ -5,6 +5,13 @@ import { Input } from './ui/Input'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { getErrorMessage } from '../lib/errors'
+import { z } from 'zod'
+import { clearAuthThrottle, getAuthThrottleState, registerAuthFailure } from '../lib/authThrottle'
+
+const loginSchema = z.object({
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters')
+})
 
 export default function Login() {
     const [email, setEmail] = useState('')
@@ -14,12 +21,34 @@ export default function Login() {
 
     async function handleLogin(e: React.FormEvent) {
         e.preventDefault()
+        const throttleState = getAuthThrottleState(email)
+
+        if (throttleState.isLocked) {
+            const remainingSecs = Math.ceil(throttleState.remainingMs / 1000)
+            setError(`Too many attempts. Please try again in ${remainingSecs} seconds.`)
+            return
+        }
+
+        const validation = loginSchema.safeParse({ email, password })
+        if (!validation.success) {
+            setError(validation.error.issues[0]?.message || 'Invalid login form')
+            return
+        }
+
         setLoading(true)
         setError(null)
 
         // Try Sign In
         const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) setError(getErrorMessage(error))
+        if (error) {
+            setError(getErrorMessage(error))
+            const nextState = registerAuthFailure(email)
+            if (nextState.isLocked) {
+                setError(`Too many attempts. Please try again in ${Math.ceil(nextState.remainingMs / 1000)} seconds.`)
+            }
+        } else {
+            clearAuthThrottle(email)
+        }
         setLoading(false)
     }
 
